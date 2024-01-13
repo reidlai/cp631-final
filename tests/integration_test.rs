@@ -1,5 +1,12 @@
-mod mpi;
+#[cfg(test)]
+extern crate rspec;
+
+#[cfg(test)]
+#[macro_use]
+extern crate hamcrest;
+
+mod cpu;
 
 pub fn main() {
-  mpi::tests();
+  cpu::tests();
 }
