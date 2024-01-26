@@ -1,4 +1,3 @@
-
 use num_cpus;
 use hamcrest::prelude::*;
 

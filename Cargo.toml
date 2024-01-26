@@ -12,4 +12,3 @@ hamcrest = {version = "^0.1.5"}
 machine-info = {version = "^1.0.9"}
 num_cpus = {version = "^1.16.0"}
 rspec = {version = "^1.0"}
-
