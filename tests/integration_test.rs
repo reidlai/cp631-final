@@ -5,8 +5,8 @@ extern crate rspec;
 #[macro_use]
 extern crate hamcrest;
 
-use std::io;
-use std::sync::Arc;
+use std::{io};
+use std::sync::{Arc};
 
 mod cpu;
 mod mpi;
@@ -39,6 +39,8 @@ pub fn main() {
       });
 
     });
+    
+
   }));
 
 }
