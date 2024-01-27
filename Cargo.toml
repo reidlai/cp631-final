@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 mpi = { version = "^0.7.0", features = ["user-operations", "derive"] }
-mpi-sys = "0.2.1"
 
 [dev-dependencies]
 hamcrest = {version = "^0.1.5"}
