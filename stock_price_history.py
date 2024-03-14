@@ -2,7 +2,6 @@ import yfinance as yf
 from datetime import datetime
 import csv
 import os
-import logging
 import pandas as pd
 
 class Row:
