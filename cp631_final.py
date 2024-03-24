@@ -99,7 +99,8 @@ print(f"in_notebook: {params['in_notebook']}")
 # In this code, platform.system() returns the name of the operating system dependent module imported. The returned value is 'Darwin' for MacOS, 'Linux' for Linux, 'Windows' for Windows and so on. If the returned value is 'Darwin', it means you are using MacOS.
 
 # %%
-!conda install distro -y
+if params["in_notebook"]:
+    !conda install distro -y
 
 # %%
 import platform
@@ -181,7 +182,8 @@ if not params["mpi_installed"]:
 # Use the numba command to see if MPI is up and running.
 
 # %%
-!conda install numba=0.55.0 -y
+if params["in_notebook"]:
+    !conda install numba=0.55.0 -y
 
 # %%
 from numba import cuda
@@ -221,14 +223,15 @@ if not params["cuda_installed"]:
 # %%
 import os
 
-if params["in_colab"] and not params["mpi_installed"]:
-    print("Installing MPI")
-    !apt update
-    !apt install openmpi-bin
-    !apt install libopenmpi-dev
-    print("MPI installed")
-elif params["mpi_installed"]:
-    print("MPI is installed")
+if params["in_notebook"]:
+    if params["in_colab"] and not params["mpi_installed"]:
+        print("Installing MPI")
+        !apt update
+        !apt install openmpi-bin
+        !apt install libopenmpi-dev
+        print("MPI installed")
+    elif params["mpi_installed"]:
+        print("MPI is installed")
 
 # %% [markdown]
 # if cuda_installed show False, please install NVIDIA CUDA toolkit in your platform
@@ -261,17 +264,18 @@ elif params["mpi_installed"]:
 # Installing PyPi packages is an essential step in this notebook. Among the mandatory packages, mpi4py and opendatasets provide crucial functionalities for data manipulation, distributed computing, and accessing large datasets. While Google Colab offers the convenience of bundled packages such as numpy, matplotlib, pandas, and seaborn, these packages still need to be installed separately in a local environment.
 
 # %%
-!conda install pip -y 
-!conda install -c conda-forge mpi4py=3.1.4 opendatasets yfinance -y
+if params["in_notebook"]:
+    !conda install pip -y 
+    !conda install -c conda-forge mpi4py=3.1.4 opendatasets yfinance -y
 
-if not params["in_colab"]:
-    print("Installing required packages for local environment")
-    !conda install numpy matplotlib seaborn -y
-    
-    if params["cuda_installed"]:
-        !conda install -c numba cudatoolkit -y
+    if not params["in_colab"]:
+        print("Installing required packages for local environment")
+        !conda install numpy matplotlib seaborn -y
+        
+        if params["cuda_installed"]:
+            !conda install -c numba cudatoolkit -y
 
-    print("Common required packages installed")
+        print("Common required packages installed")
 
 
 # %% [markdown]
@@ -281,7 +285,8 @@ if not params["in_colab"]:
 !nvcc --version
 
 # %%
-!numba -s
+if params["in_notebook"]:
+    !numba -s
 
 # %% [markdown]
 # ### Import required packages
@@ -756,6 +761,11 @@ if __name__ == "__main__":
 
 # %% [markdown]
 # ## Export notebook into Python Script and Run with mpirun
+
+# %% [markdown]
+# ```bash
+# mpirun -np 1 -mca opal_cuda_support 1 ~/miniconda3/envs/cp631-final/bin/python ~/cp631-final/cp631_final.py
+# ```
 
 # %% [markdown]
 # ## Data Visualization
