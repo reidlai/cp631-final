@@ -99,8 +99,12 @@ print(f"in_notebook: {params['in_notebook']}")
 # In this code, platform.system() returns the name of the operating system dependent module imported. The returned value is 'Darwin' for MacOS, 'Linux' for Linux, 'Windows' for Windows and so on. If the returned value is 'Darwin', it means you are using MacOS.
 
 # %%
-if params["in_notebook"]:
-    !conda install distro -y
+import subprocess
+import importlib.util
+
+if params["in_notebook"] and importlib.util.find_spec("distro") is None:
+    # !conda install distro -y
+    subprocess.run(["conda", "install", "distro", "-y"])
 
 # %%
 import platform
@@ -182,8 +186,8 @@ if not params["mpi_installed"]:
 # Use the numba command to see if MPI is up and running.
 
 # %%
-if params["in_notebook"]:
-    !conda install numba=0.55.0 -y
+if params["in_notebook"] and importlib.util.find_spec("numba") is None:
+    subprocess.run(["conda", "install", "numba=0.55.0", "-y"])
 
 # %%
 from numba import cuda
@@ -226,9 +230,7 @@ import os
 if params["in_notebook"]:
     if params["in_colab"] and not params["mpi_installed"]:
         print("Installing MPI")
-        !apt update
-        !apt install openmpi-bin
-        !apt install libopenmpi-dev
+        subprocess.run(["conda", "install", "openmpi", "-y" ])
         print("MPI installed")
     elif params["mpi_installed"]:
         print("MPI is installed")
@@ -265,15 +267,30 @@ if params["in_notebook"]:
 
 # %%
 if params["in_notebook"]:
-    !conda install pip -y 
+    # !conda install pip -y 
+    subprocess.run(["conda", "install", "pip", "-y"])
     !conda install -c conda-forge mpi4py=3.1.4 opendatasets yfinance -y
+    if importlib.util.find_spec("mpi4py") is None:
+        subprocess.run(["conda", "install", "-c", "conda-forge", "mpi4py=3.1.4", "-y"])
+    if importlib.util.find_spec("opendatasets") is None:
+        subprocess.run(["conda", "install", "-c", "conda-forge", "opendatasets", "-y"])
+    if importlib.util.find_spec("yfinance") is None:
+        subprocess.run(["conda", "install", "-c", "conda-forge", "yfinance", "-y"])
 
     if not params["in_colab"]:
         print("Installing required packages for local environment")
-        !conda install numpy matplotlib seaborn -y
+        if importlib.util.find_spec("numpy") is None:
+            subprocess.run(["conda", "install", "numpy", "-y"])
+        if importlib.util.find_spec("matplotlib") is None:
+            subprocess.run(["conda", "install", "matplotlib", "-y"])
+        if importlib.util.find_spec("seaborn") is None:
+            subprocess.run(["conda", "install", "seaborn", "-y"])
+        if importlib.util.find_spec("pandas") is None:
+            subprocess.run(["conda", "install", "pandas", "-y"])
         
         if params["cuda_installed"]:
-            !conda install -c numba cudatoolkit -y
+            if importlib.util.find_spec("cudatoolit") is None:
+                subprocess.run(["conda", "install", "cudatoolkit", "-y"])
 
         print("Common required packages installed")
 
@@ -282,11 +299,11 @@ if params["in_notebook"]:
 # Check numba info
 
 # %%
-!nvcc --version
+subprocess.run(["nvcc", "--version"])
 
 # %%
 if params["in_notebook"]:
-    !numba -s
+    subprocess.run(["numba", "-s"])
 
 # %% [markdown]
 # ### Import required packages
