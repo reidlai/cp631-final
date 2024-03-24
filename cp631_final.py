@@ -81,10 +81,13 @@ print("Project root: ", os.environ["PROJECT_ROOT"])
 # ### Jupyter Notebook Environment Checking
 
 # %%
+from IPython import get_ipython
 def in_notebook():
     try:
-        from IPython import get_ipython
-        if 'IPKernelApp' not in get_ipython().config:  # pragma: no cover
+        ipython_instance = get_ipython()
+        if ipython_instance is None:
+            return False
+        elif ipython_instance and 'IPKernelApp' not in get_ipython().config:  # pragma: no cover
             return False
     except ImportError:
         return False
@@ -267,9 +270,7 @@ if params["in_notebook"]:
 
 # %%
 if params["in_notebook"]:
-    # !conda install pip -y 
     subprocess.run(["conda", "install", "pip", "-y"])
-    !conda install -c conda-forge mpi4py=3.1.4 opendatasets yfinance -y
     if importlib.util.find_spec("mpi4py") is None:
         subprocess.run(["conda", "install", "-c", "conda-forge", "mpi4py=3.1.4", "-y"])
     if importlib.util.find_spec("opendatasets") is None:
