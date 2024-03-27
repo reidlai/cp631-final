@@ -435,10 +435,11 @@ if params["cuda_installed"]:
             macd[i] = ema12[i] - ema26[i]
             
     def macd_gpu(df, signal_period=9):
-        ema12 = df["EMA12"].values
-        ema26 = df["EMA26"].values
-        macd = np.empty_like(ema12)
-        macd_cuda[len(ema12), 1](ema12, ema26, macd)
+        ema12_device = cuda.to_device(df["EMA12"].values)
+        ema26_device = cuda.to_device(df["EMA26"].values)
+        macd_device = cuda.to_device(np.empty_like(df["EMA12"].values))
+        macd_cuda[df["EMA12"].shape[0], 1](ema12_device, ema26_device, macd_device)
+        macd = macd_device.copy_to_host()
         df["MACD"] = macd
         return df
 
@@ -695,9 +696,9 @@ def core_logic(df, index, params):
         os.makedirs(os.environ["PROJECT_ROOT"] + "data")
     results.to_csv(os.environ["PROJECT_ROOT"] + "data/results-%d-%d.csv" % (params["numberOfStocks"], params["numberOfDays"]), index=False)
     
-    df["numberOfRows"].loc[index] = results.shape[0]
-    df["serialElapsedTimes"].loc[index] = serial_elapsedtime
-    df["parallelElapsedTimes"].loc[index] = temp_elapsedtime
+    df.loc[index, "numberOfRows"] = results.shape[0]
+    df.loc[index, "serialElapsedTimes"] = serial_elapsedtime
+    df.loc[index, "parallelElapsedTimes"] = temp_elapsedtime
     return df
         
     
