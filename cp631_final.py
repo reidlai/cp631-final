@@ -654,6 +654,8 @@ def core_logic(df, index, params):
     df.loc[index, "numberOfRows"] = results.shape[0]
     df.loc[index, "serialElapsedTimes"] = serial_elapsedtime
     df.loc[index, "parallelElapsedTimes"] = temp_elapsedtime
+    
+    print("Returning df from core_logic")
     return df
         
     
@@ -662,26 +664,28 @@ def core_logic(df, index, params):
 # ## Main Body
 
 # %%
-if __name__ == "__main__":
-    df = pd.DataFrame()
-    df["numberOfStocks"] = [10, 50, 100, 200, 400]
-    df["numberOfDays"] = [30, 90, 180, 365, 730]
+
+df = pd.DataFrame()
+df["numberOfStocks"] = [10, 50, 100, 200, 400]
+df["numberOfDays"] = [30, 90, 180, 365, 730]
+
+df["numberOfRows"] = df["numberOfStocks"] * df["numberOfDays"]
+
+# Fill zeros
+df["serialElapsedTimes"] = [0.0] * len(df)
+df["parallelElapsedTimes"] = [0.0] * len(df)
+
+for index, row in df.iterrows():
+    print(f"Processing {row['numberOfStocks']} stocks for {row['numberOfDays']} days")
+    params["numberOfStocks"] = row["numberOfStocks"].astype(int)
+    params["numberOfDays"] = row["numberOfDays"].astype(int)
     
-    df["numberOfRows"] = df["numberOfStocks"] * df["numberOfDays"]
+    print(f"Params: {params}")
+    df = core_logic(df, index, params)
     
-    # Fill zeros
-    df["serialElapsedTimes"] = [0.0] * len(df)
-    df["parallelElapsedTimes"] = [0.0] * len(df)
+    print("Received df from core_logic")
     
-    for index, row in df.iterrows():
-        print(f"Processing {row['numberOfStocks']} stocks for {row['numberOfDays']} days")
-        params["numberOfStocks"] = row["numberOfStocks"].astype(int)
-        params["numberOfDays"] = row["numberOfDays"].astype(int)
-        
-        print(f"Params: {params}")
-        df = core_logic(df, index, params)
-        
-    print(df)
+print(df)
         
 
 
@@ -698,5 +702,12 @@ if __name__ == "__main__":
 
 # %% [markdown]
 # ## Performance Analysis
+
+# %% [markdown]
+# # Exit
+
+# %%
+if not params["in_notebook"]:
+    exit(0)
 
 
