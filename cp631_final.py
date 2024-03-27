@@ -684,7 +684,17 @@ for index, row in df.iterrows():
     df = core_logic(df, index, params)
     
     print("Received df from core_logic")
+
+# Clean up MPI, CUDA and data
+if params["mpi_installed"]:
+    MPI.Finalize()
+    print("MPI Finalized")
+
+if params["cuda_installed"]:
+    cuda.close()
+    print("CUDA closed")
     
+
 print(df)
         
 
