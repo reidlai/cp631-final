@@ -461,48 +461,10 @@ def read_symbols_from_csvfile(csvfile_path):
     return symbols
 
 # %% [markdown]
-# ### Obtain GPU lock
-
-# %%
-# Obtain available GPU and lock it; otherwise wait for available GPU
-def obtain_available_gpu_lock(locks, params, rank, win):
-    if params["mpi_installed"]:
-
-        # Wait for available GPU
-        while True:
-            for i in range(len(locks)):
-                # lock_status = locks[i].Get_attr(MPI.WIN_LOCK_STATUS)
-                # if lock_status == 0:
-                #     locks[i].lock(i)
-                #     return i
-                win.Lock(i)
-                if locks[i] == -1:
-                    locks[i] = rank
-                    return i
-                win.Unlock(i)
-            # Sleep for random time to avoid busy waiting
-            time.sleep(random.choice([0.1, 0.2, 0.3, 0.5, 0.7]))
-    return None
-
-# %% [markdown]
-# ### Release GPU Lock
-
-# %%
-def release_gpu_lock(locks, gpu_index, params, rank, win):
-    if params["mpi_installed"]:
-        if locks[gpu_index] == rank:
-            locks[gpu_index] = -1
-            win.Unlock(gpu_index)
-            return True
-        return False
-    else:
-        return True
-
-# %% [markdown]
 # ### Core Logic
 
 # %%
-def emarsi(mode, symbols, start_date, end_date, rank, size, params, locks, win):
+def emarsi(mode, symbols, start_date, end_date, rank, size, params):
 
     results = pd.DataFrame()
     # Fetch stock price history quotes using the local symbols
@@ -546,7 +508,7 @@ def main_serial(params):
     # ************** #
     # * Core logic * #
     # ************** #
-    results = emarsi("serial", symbols, start_date, end_date, rank, size, params, None, None)
+    results = emarsi("serial", symbols, start_date, end_date, rank, size, params)
     results = macd(results)
 
     serial_fetching_stock_end_time = time.time()
@@ -602,14 +564,6 @@ def main_hybrid(params):
         size = 1
         serial_fetching_stock_start_time = time.time()
 
-    if params["mpi_installed"] and params["cuda_installed"]:
-        print(f"Initializing GPU locks")
-        locks = np.zeros(gpu_cores, dtype='i')
-        win = MPI.Win.Allocate(gpu_cores, 1, MPI.INFO_NULL, comm)
-        print(f"{len(locks)} GPU(s) are allocated")
-    else:
-      locks = []
-
     print(f"Rank: {rank}, Size: {size}")
 
     # Root process should scatter the symbols to all processes
@@ -642,7 +596,7 @@ def main_hybrid(params):
     # ************** #
     print(f"params: {params}")
 
-    results = emarsi("parallel", local_symbols, start_date, end_date, rank, size, params, locks, win)
+    results = emarsi("parallel", local_symbols, start_date, end_date, rank, size, params)
     # display(results)
 
     ## Gather the results from all processes
@@ -664,7 +618,8 @@ def main_hybrid(params):
             print(f"Serial fetching stock price history quotes completed in {serial_fetching_stock_end_time - serial_fetching_stock_start_time} seconds")
             elapsed_time = serial_fetching_stock_end_time - serial_fetching_stock_start_time
         return results, elapsed_time
-    return None, None
+    else:
+        return None, None
     
 
 
