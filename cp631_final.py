@@ -273,8 +273,10 @@ if params["in_notebook"]:
     subprocess.run(["conda", "install", "pip", "-y"])
     if importlib.util.find_spec("mpi4py") is None:
         subprocess.run(["conda", "install", "-c", "conda-forge", "mpi4py=3.1.4", "-y"])
-    if importlib.util.find_spec("opendatasets") is None:
-        subprocess.run(["conda", "install", "-c", "conda-forge", "opendatasets", "-y"])
+    if importlib.util.find_spec("kaggle") is None:
+        subprocess.run(["conda", "install", "-c", "conda-forge", "kaggle", "-y"])
+    # if importlib.util.find_spec("opendatasets") is None:
+    #     subprocess.run(["conda", "install", "-c", "conda-forge", "opendatasets", "-y"])
     if importlib.util.find_spec("yfinance") is None:
         subprocess.run(["conda", "install", "-c", "conda-forge", "yfinance", "-y"])
 
@@ -314,7 +316,8 @@ if params["in_notebook"]:
 import csv
 import logging
 import numpy as np
-import opendatasets as od
+# import opendatasets as od
+import kaggle
 import os
 import pandas as pd
 import random
@@ -336,7 +339,9 @@ if params["cuda_installed"]:
 # I will first need to download S&P 500 constituents from my Kaggle repository
 
 # %%
-od.download("https://www.kaggle.com/datasets/reidlai/s-and-p-500-constituents")
+# od.download("https://www.kaggle.com/datasets/reidlai/s-and-p-500-constituents")
+kaggle.api.authenticate()
+kaggle.api.dataset_download_files('reidlai/s-and-p-500-constituents', path="s-and-p-500-constituents", unzip=True)
 
 # %% [markdown]
 # ## Stock Price History Download
@@ -379,17 +384,23 @@ def get_stock_price_history_quotes(stock_symbol, start_date, end_date):
 # ## Technical Analysis
 
 # %% [markdown]
-# ### CPU based technical indicator funtions
+# ### EMA
 
 # %%
-def ema(days, values):
+def ema(values, days=12):
     alpha = 2 / (days + 1)
-    ema_values = [values[0]]  # start with the first value
-    for value in values[1:]:
-        ema_values.append(alpha * value + (1 - alpha) * ema_values[-1])
-    return ema_values[-1]
+    ema_values = np.empty_like(values)  # create an array to store all EMA values
+    ema_values[0] = values[0]  # start with the first value
+    for i in range(1, len(values)):
+        ema_values[i] = alpha * values[i] + (1 - alpha) * ema_values[i - 1]
+    return ema_values
 
-def rsi(days, values):
+
+# %% [markdown]
+# ### RSI
+
+# %%
+def rsi(values, days=14):
     gains = []
     losses = []
     for i in range(1, len(values)):
@@ -406,120 +417,30 @@ def rsi(days, values):
     rsi_value = 100 - (100 / (1 + rs))
     return rsi_value
 
-def macd(values, short_period=12, long_period=26, signal_period=9):
-    ema_short = ema(short_period, values)
-    ema_long = ema(long_period, values)
-    macd_line = np.array(ema_short) - np.array(ema_long)
-    signal_line = ema(signal_period, macd_line.tolist())
-    return macd_line, signal_line
-
 # %% [markdown]
-# ### GPU based technical indicator funtions
+# ### MACD
 
 # %%
+
+def macd(df, short_period=12, long_period=26, signal_period=9):
+
+    df["MACD"] = df["EMA12"] - df["EMA26"]
+    return df
+
 if params["cuda_installed"]:
-
     @cuda.jit
-    def ema_cuda(values, ema_values, days, n, m):
-        idx = cuda.threadIdx.x + cuda.blockDim.x * cuda.blockIdx.x
-        if idx < n:
-            alpha = 2.0 / (days + 1)
-            for j in range(m):
-                if j == 0:
-                    ema_values[idx * m] = values[idx * m]  # start with the first value
-                else:
-                    ema_values[idx * m + j] = alpha * values[idx * m + j] + (1 - alpha) * ema_values[idx * m + j - 1]
-
-    @cuda.jit
-    def compute_gains_losses_cuda(values, gains, losses, n):
-        idx = cuda.threadIdx.x + cuda.blockDim.x * cuda.blockIdx.x
-        if idx < n:
-            change = values[idx] - values[idx - 1]
-            gains[idx] = max(change, 0)
-            losses[idx] = max(-change, 0)
-
-    @cuda.jit
-    def macd_cuda(values, macd_values, signal_values, short_period, long_period, signal_period, n, m):
-        idx = cuda.threadIdx.x + cuda.blockDim.x * cuda.blockIdx.x
-        if idx < n:
-            alpha_short = 2.0 / (short_period + 1)
-            alpha_long = 2.0 / (long_period + 1)
-            alpha_signal = 2.0 / (signal_period + 1)
-            ema_short = 0
-            ema_long = 0
-            ema_signal = 0
-            for j in range(m):
-                if j < short_period:
-                    ema_short = alpha_short * values[idx * m + j] + (1 - alpha_short) * ema_short
-                if j < long_period:
-                    ema_long = alpha_long * values[idx * m + j] + (1 - alpha_long) * ema_long
-                macd_val = ema_short - ema_long
-                if j < signal_period:
-                    ema_signal = alpha_signal * macd_val + (1 - alpha_signal) * ema_signal
-                macd_values[idx * m + j] = macd_val
-                signal_values[idx * m + j] = ema_signal
-
-    def ema_gpu(values, days):
-        if values.ndim == 1:
-            n = values.shape[0]
-            m = 1
-        else:
-            n, m = values.shape
-
-        ema_values = np.empty_like(values)
-
-        block_size = 256
-        grid_size = (n + block_size - 1) // block_size
-
-        values_device = cuda.to_device(values)
-        ema_values_device = cuda.to_device(ema_values)
-
-        ema_cuda[grid_size, block_size](values_device, ema_values_device, days, n, m)
-        ema_values = ema_values_device.copy_to_host()
-
-        return ema_values
-
-    def rsi_gpu(days, values):
-        n = len(values)
-        gains = np.empty_like(values)
-        losses = np.empty_like(values)
-        block_size = 256
-        grid_size = (n + block_size - 1) // block_size
-
-        values_device = cuda.to_device(values)
-        gains_device = cuda.to_device(gains)
-        losses_device = cuda.to_device(losses)
-
-        compute_gains_losses_cuda[grid_size, block_size](values_device, gains_device, losses_device, n)
-        gains = gains_device.copy_to_host()
-        losses = losses_device.copy_to_host()
-
-        avg_gain = np.sum(gains[:days]) / days
-        avg_loss = np.sum(losses[:days]) / days
-        rs = avg_gain / avg_loss if avg_loss != 0 else 0
-        rsi_value = 100 - (100 / (1 + rs))
-        return rsi_value
-
-    def macd_gpu(values, short_period=12, long_period=26, signal_period=9):
-        # n, m = values.shape
-        n = len(values)
-        m = 1
-        macd_values = np.empty_like(values)
-        signal_values = np.empty_like(values)
-
-        block_size = 256
-        grid_size = (n + block_size - 1) // block_size
-
-        values_device = cuda.to_device(values)
-        macd_values_device = cuda.to_device(macd_values)
-        signal_values_device = cuda.to_device(signal_values)
-
-
-        macd_cuda[grid_size, block_size](values_device, macd_values_device, signal_values_device, short_period, long_period, signal_period, n, m)
-        macd_values = macd_values_device.copy_to_host()
-        signal_values = signal_values_device.copy_to_host()
-
-        return macd_values, signal_values
+    def macd_cuda(ema12, ema26, macd):
+        i = cuda.grid(1)
+        if i < len(ema12):
+            macd[i] = ema12[i] - ema26[i]
+            
+    def macd_gpu(df, signal_period=9):
+        ema12 = df["EMA12"].values
+        ema26 = df["EMA26"].values
+        macd = np.empty_like(ema12)
+        macd_cuda[len(ema12), 1](ema12, ema26, macd)
+        df["MACD"] = macd
+        return df
 
 # %% [markdown]
 # ## Core Main Program
@@ -580,7 +501,7 @@ def release_gpu_lock(locks, gpu_index, params, rank, win):
 # ### Core Logic
 
 # %%
-def core_logic(symbols, start_date, end_date, rank, size, params, locks, win):
+def emarsi(mode, symbols, start_date, end_date, rank, size, params, locks, win):
 
     results = pd.DataFrame()
     # Fetch stock price history quotes using the local symbols
@@ -589,33 +510,10 @@ def core_logic(symbols, start_date, end_date, rank, size, params, locks, win):
         # Load the stock price history data into pandas DataFrame
         stock_price_history_df = get_stock_price_history_quotes(symbol, start_date, end_date)
         if stock_price_history_df.shape[0] > 0:
-
-            # Calculate technical indicators using CUDA
-            if params["cuda_installed"]:
-                # gpu_id = obtain_available_gpu_lock(locks, params, rank, win)
-                stock_price_history_df['EMA'] = ema_gpu(stock_price_history_df['close'].values, 12)
-                # release_gpu_lock(locks, gpu_id, params, win)
-
-                # gpu_id = obtain_available_gpu_lock(locks, params, rank, win)
-                stock_price_history_df['RSI'] = rsi_gpu(14, stock_price_history_df['close'].values)
-                # release_gpu_lock(locks, gpu_id, params, win)
-
-                # gpu_id = obtain_available_gpu_lock(locks, params, rank, win)
-                macd_values, signal_values = macd_gpu(stock_price_history_df['close'].values)
-                # release_gpu_lock(locks, gpu_id, params, win)
-
-                stock_price_history_df['MACD'] = macd_values
-                stock_price_history_df['Signal'] = signal_values
-            else:
-                stock_price_history_df['EMA'] = stock_price_history_df['close'].rolling(window=12).mean()
-                stock_price_history_df['RSI'] = stock_price_history_df['close'].rolling(window=14).apply(rsi, raw=True)
-                # macd_values, signal_values = macd(stock_price_history_df['close'].values)
-                stock_price_history_df['MACD'] = macd_values
-                stock_price_history_df['Signal'] = signal_values
-
+            stock_price_history_df['EMA12'] = stock_price_history_df['close'].ewm(span=12, adjust=False).mean()
+            stock_price_history_df['EMA26'] = stock_price_history_df['close'].ewm(span=26, adjust=False).mean()
+            stock_price_history_df['RSI'] = stock_price_history_df['close'].rolling(window=14).apply(rsi, raw=True)
             results = pd.concat([results, stock_price_history_df])
-
-
     return results
 
 # %% [markdown]
@@ -624,13 +522,12 @@ def core_logic(symbols, start_date, end_date, rank, size, params, locks, win):
 # %%
 def main_serial(params):
 
-    current_year = datetime.now().year
     previous_day = datetime.now() - timedelta(days=1)
-    first_day_of_year = f"{current_year}-01-01"
-    previous_day_str = previous_day.strftime("%Y-%m-%d")
+    first_day = previous_day - timedelta(days=int(params["numberOfDays"]))
 
-    start_date = first_day_of_year + "T00:00:00"
-    end_date = previous_day_str + "T23:59:59"
+    start_date = first_day.strftime('%Y-%m-%dT%H:%M:%S')
+    end_date = previous_day.strftime('%Y-%m-%dT%H:%M:%S')
+    
     data_dir = './data'
 
     gpu_cores = 0
@@ -642,30 +539,33 @@ def main_serial(params):
 
     # Read symbols from the CSV file
     symbols = read_symbols_from_csvfile(os.environ["PROJECT_ROOT"] + "s-and-p-500-constituents/sandp500-20240310.csv")
+    symbols = symbols[:params["numberOfStocks"]]
 
 
     # ************** #
     # * Core logic * #
     # ************** #
-    results = core_logic(symbols, start_date, end_date, rank, size, params, None, None)
-
+    results = emarsi("serial", symbols, start_date, end_date, rank, size, params, None, None)
+    results = macd(results)
 
     serial_fetching_stock_end_time = time.time()
     print(f"Serial fetching stock price history quotes completed in {serial_fetching_stock_end_time - serial_fetching_stock_start_time} seconds")
+    serial_elapsedtime = serial_fetching_stock_end_time - serial_fetching_stock_start_time
+    return results, serial_elapsedtime
 
 # %% [markdown]
 # ### Main Logic with Hybrid Programming
 
 # %%
 def main_hybrid(params):
-
-    current_year = datetime.now().year
+    # Calculate the start date based on the days in params
+  
     previous_day = datetime.now() - timedelta(days=1)
-    first_day_of_year = f"{current_year}-01-01"
-    previous_day_str = previous_day.strftime("%Y-%m-%d")
+    first_day = previous_day - timedelta(days=int(params["numberOfDays"]))
 
-    start_date = first_day_of_year + "T00:00:00"
-    end_date = previous_day_str + "T23:59:59"
+    start_date = first_day.strftime('%Y-%m-%dT%H:%M:%S')
+    end_date = previous_day.strftime('%Y-%m-%dT%H:%M:%S')
+    
     data_dir = './data'
 
     # Create a lock for each GPU
@@ -703,13 +603,7 @@ def main_hybrid(params):
 
     if params["mpi_installed"] and params["cuda_installed"]:
         print(f"Initializing GPU locks")
-        # locks = [MPI.Win.Create(None, 1, MPI.INFO_NULL, MPI.COMM_WORLD) for _ in range(gpu_cores)]
-        # locks = [MPI.Win.Allocate(1, 1, MPI.INFO_NULL, MPI.COMM_WORLD) for _ in range(gpu_cores)]
-        # for i in range(gpu_cores):
-        #     locks[i].Fence(0)
         locks = np.zeros(gpu_cores, dtype='i')
-        # locks = np.ascontiguousarray(np.zeros(gpu_cores, dtype='i'))
-        # win = MPI.Win.Create(locks, comm=comm)
         win = MPI.Win.Allocate(gpu_cores, 1, MPI.INFO_NULL, comm)
         print(f"{len(locks)} GPU(s) are allocated")
     else:
@@ -722,6 +616,7 @@ def main_hybrid(params):
 
         # Read symbols from the CSV file
         symbols = read_symbols_from_csvfile(os.environ["PROJECT_ROOT"] + "s-and-p-500-constituents/sandp500-20240310.csv")
+        symbols = symbols[:params["numberOfStocks"]]
 
         # Calculate how many symbols each process should receive
         symbols_per_process = len(symbols) // size
@@ -746,7 +641,8 @@ def main_hybrid(params):
     # ************** #
     print(f"params: {params}")
 
-    results = core_logic(local_symbols, start_date, end_date, rank, size, params, locks, win)
+    results = emarsi("parallel", local_symbols, start_date, end_date, rank, size, params, locks, win)
+    # display(results)
 
     ## Gather the results from all processes
     remote_results = pd.DataFrame()
@@ -755,27 +651,83 @@ def main_hybrid(params):
 
     if rank == 0:
         results = pd.concat([results, remote_results])
+        results = macd_gpu(results)
+        elapsed_time = 0.0;
         if params["mpi_installed"] and comm:
-            display(results)
-
             # MPI WTime
             parallel_fetching_stock_end_time = MPI.Wtime()
             print(f"Parallel fetching stock price history quotes completed in {parallel_fetching_stock_end_time - parallel_fetching_stock_start_time} seconds")
+            elapsed_time = parallel_fetching_stock_end_time - parallel_fetching_stock_start_time
         else:
             serial_fetching_stock_end_time = time.time()
             print(f"Serial fetching stock price history quotes completed in {serial_fetching_stock_end_time - serial_fetching_stock_start_time} seconds")
+            elapsed_time = serial_fetching_stock_end_time - serial_fetching_stock_start_time
+        return results, elapsed_time
+    return None, None
+    
 
 
 # %% [markdown]
-# ### Main Body
+# ### Core Logic
 
 # %%
-if __name__ == "__main__":
+def core_logic(df, index, params):
     # Remove data directory recursively if exists
     if os.path.exists("data"):
         os.system("rm -rf data")
-    main_serial(params)
-    main_hybrid(params)
+    results, serial_elapsedtime = main_serial(params)
+    results.rename(columns={
+        "EMA12": "EMA12_S",
+        "EMA26": "EMA26_S", 
+        "RSI": "RSI_S", 
+        "MACD": "MACD_S", 
+    }, inplace=True)
+    
+    temp_result, temp_elapsedtime = main_hybrid(params)
+    if temp_result is not None:
+        results["EMA12_P"] = temp_result["EMA12"]
+        results["EMA26_P"] = temp_result["EMA26"]
+        results["RSI_P"] = temp_result["RSI"]
+        results["MACD_P"] = temp_result["MACD"]
+        
+
+    if not os.path.exists(os.environ["PROJECT_ROOT"] + "data"):
+        os.makedirs(os.environ["PROJECT_ROOT"] + "data")
+    results.to_csv(os.environ["PROJECT_ROOT"] + "data/results-%d-%d.csv" % (params["numberOfStocks"], params["numberOfDays"]), index=False)
+    
+    df["numberOfRows"].loc[index] = results.shape[0]
+    df["serialElapsedTimes"].loc[index] = serial_elapsedtime
+    df["parallelElapsedTimes"].loc[index] = temp_elapsedtime
+    return df
+        
+    
+
+# %% [markdown]
+# ## Main Body
+
+# %%
+if __name__ == "__main__":
+    df = pd.DataFrame()
+    df["numberOfStocks"] = [10, 50, 100, 200, 400]
+    df["numberOfDays"] = [30, 90, 180, 365, 730]
+    
+    df["numberOfRows"] = df["numberOfStocks"] * df["numberOfDays"]
+    
+    # Fill zeros
+    df["serialElapsedTimes"] = [0.0] * len(df)
+    df["parallelElapsedTimes"] = [0.0] * len(df)
+    
+    for index, row in df.iterrows():
+        print(f"Processing {row['numberOfStocks']} stocks for {row['numberOfDays']} days")
+        params["numberOfStocks"] = row["numberOfStocks"].astype(int)
+        params["numberOfDays"] = row["numberOfDays"].astype(int)
+        
+        print(f"Params: {params}")
+        df = core_logic(df, index, params)
+        
+    print(df)
+        
+
 
 # %% [markdown]
 # ## Export notebook into Python Script and Run with mpirun
