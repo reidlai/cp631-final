@@ -617,7 +617,6 @@ def main_hybrid(params):
     print(f"params: {params}")
 
     results = emarsi("parallel", local_symbols, start_date, end_date, rank, size, params)
-    # display(results)
 
     ## Gather the results from all processes
     remote_results = pd.DataFrame()
