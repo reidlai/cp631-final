@@ -433,7 +433,6 @@ if params["cuda_installed"]:
         ema26_device = cuda.to_device(df["EMA26"].values)
         macd_device = cuda.to_device(np.empty_like(df["EMA12"].values))
         macd_cuda[df["EMA12"].shape[0], 1](ema12_device, ema26_device, macd_device)
-        cuda.synchronize()
         macd = macd_device.copy_to_host()
         
         del ema12_device
