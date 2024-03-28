@@ -193,16 +193,17 @@ if params["in_notebook"] and importlib.util.find_spec("numba") is None:
     subprocess.run(["conda", "install", "numba=0.55.0", "-y"])
 
 # %%
-from numba import cuda
+# from numba import cuda
 
-def is_cuda_installed():
-    try:
-        cuda.detect()
-        return True
-    except cuda.CudaSupportError:
-        return False
+# def is_cuda_installed():
+#     try:
+#         cuda.detect()
+#         return True
+#     except cuda.CudaSupportError:
+#         return False
 
-params["cuda_installed"] = is_cuda_installed()
+# params["cuda_installed"] = is_cuda_installed()
+params["cuda_installed"] = False    
 print(f'CUDA installed: {params["cuda_installed"]}')
 
 if not params["cuda_installed"]:
@@ -302,10 +303,11 @@ if params["in_notebook"]:
 # Check numba info
 
 # %%
-subprocess.run(["nvcc", "--version"])
+if params["cuda_installed"]:
+    subprocess.run(["nvcc", "--version"])
 
 # %%
-if params["in_notebook"]:
+if params["in_notebook"] and params["cuda_installed"]:
     subprocess.run(["numba", "-s"])
 
 # %% [markdown]
@@ -344,15 +346,15 @@ kaggle.api.dataset_download_files('reidlai/s-and-p-500-constituents', path="s-an
 # ## Stock Price History Download
 
 # %%
-class Row:
-    def __init__(self, timestamp, open, high, low, close, adjclose, volume):
-        self.timestamp = timestamp
-        self.open = open
-        self.high = high
-        self.low = low
-        self.close = close
-        self.adjclose = adjclose
-        self.volume = volume
+# class Row:
+#     def __init__(self, timestamp, open, high, low, close, adjclose, volume):
+#         self.timestamp = timestamp
+#         self.open = open
+#         self.high = high
+#         self.low = low
+#         self.close = close
+#         self.adjclose = adjclose
+#         self.volume = volume
 
 def get_stock_price_history_quotes(stock_symbol, start_date, end_date):
     start_date = datetime.strptime(start_date, "%Y-%m-%dT%H:%M:%S")
@@ -625,7 +627,10 @@ def main_hybrid(params):
 
     if rank == 0:
         results = pd.concat([results, remote_results])
-        results = macd_gpu(results)
+        if params["cuda_installed"]:
+            results = macd_gpu(results)
+        else:
+            results = macd(results)
         elapsed_time = 0.0;
         if params["mpi_installed"] and comm:
             # MPI WTime
