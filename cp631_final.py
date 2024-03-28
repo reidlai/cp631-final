@@ -440,7 +440,7 @@ if params["cuda_installed"]:
         del ema26_device
         del macd_device
         
-        cuda.synchronize()
+        # cuda.synchronize()
         # cuda.current_context().memory_manager.deallocations.clear()
         
         df["MACD"] = macd
@@ -712,10 +712,10 @@ if params["mpi_installed"]:
     MPI.Finalize()
     print("MPI Finalized")
 
-if params["cuda_installed"]:
+# if params["cuda_installed"]:
         
-    cuda.close()
-    print("CUDA closed")
+#     cuda.close()
+#     print("CUDA closed")
     
 
 print(df)
