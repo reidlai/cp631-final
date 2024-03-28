@@ -312,11 +312,8 @@ if params["in_notebook"]:
 # ### Import required packages
 
 # %%
-# import datetime
 import csv
-import logging
 import numpy as np
-# import opendatasets as od
 import kaggle
 import os
 import pandas as pd
@@ -360,24 +357,39 @@ class Row:
 def get_stock_price_history_quotes(stock_symbol, start_date, end_date):
     start_date = datetime.strptime(start_date, "%Y-%m-%dT%H:%M:%S")
     end_date = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S")
+    
+    quotes_df = pd.DataFrame(columns=['symbol', 'timestamp', 'open', 'high', 'low', 'close', 'adjclose', 'volume'])
+    
+    if "." in stock_symbol:
+        return None
 
     try:
+        # TODO: fixing kernel crash when passing progress=False to yf.download function
+        # data = yf.download(stock_symbol, start=start_date, end=end_date, progress=False)
         data = yf.download(stock_symbol, start=start_date, end=end_date)
+        quotes_df['timestamp'] = data.index
+        quotes_df['open'] = data['Open']
+        quotes_df['high'] = data['High']
+        quotes_df['low'] = data['Low']
+        quotes_df['close'] = data['Close']
+        quotes_df['adjclose'] = data['Adj Close']
+        quotes_df['volume'] = data['Volume']
     except Exception as e:
-        logging.error(f"Symbol not found: {stock_symbol}")
-        return []
+        pass
 
-    quotes = []
-    for index, row in data.iterrows():
-        quote = Row(index, row['Open'], row['High'], row['Low'], row['Close'], row['Adj Close'], row['Volume'])
-        quotes.append(quote)
 
-    quotes.sort(key=lambda x: x.timestamp)
+    # for index, row in data.iterrows():
+    #     quote = Row(index, row['Open'], row['High'], row['Low'], row['Close'], row['Adj Close'], row['Volume'])
+    #     quotes.append(quote)
+
+    # quotes.sort(key=lambda x: x.timestamp)
+    quotes_df.sort_values(by='timestamp', inplace=True)
 
     # convert quotes into dataframe
-    quotes_df = pd.DataFrame([vars(quote) for quote in quotes])
+    # quotes_df = pd.DataFrame([vars(quote) for quote in quotes])
     # add symbol column
-    quotes_df['symbol'] = stock_symbol
+    if quotes_df.shape[0] > 0:
+        quotes_df['symbol'] = stock_symbol
     return quotes_df
 
 # %% [markdown]
@@ -462,7 +474,7 @@ def read_symbols_from_csvfile(csvfile_path):
     return symbols
 
 # %% [markdown]
-# ### Core Logic
+# ### Calculating EMA12, EMA26 and RSI
 
 # %%
 def emarsi(mode, symbols, start_date, end_date, rank, size, params):
@@ -473,7 +485,7 @@ def emarsi(mode, symbols, start_date, end_date, rank, size, params):
 
         # Load the stock price history data into pandas DataFrame
         stock_price_history_df = get_stock_price_history_quotes(symbol, start_date, end_date)
-        if stock_price_history_df.shape[0] > 0:
+        if stock_price_history_df is not None and stock_price_history_df.shape[0] > 0:
             stock_price_history_df['EMA12'] = stock_price_history_df['close'].ewm(span=12, adjust=False).mean()
             stock_price_history_df['EMA26'] = stock_price_history_df['close'].ewm(span=26, adjust=False).mean()
             stock_price_history_df['RSI'] = stock_price_history_df['close'].rolling(window=14).apply(rsi, raw=True)
@@ -485,7 +497,11 @@ def emarsi(mode, symbols, start_date, end_date, rank, size, params):
 
 # %%
 def main_serial(params):
-
+    # When using logging module, it crash iKernel so fallback to print method
+    print("*" * 80)
+    print("* Serial execution")
+    print("*" * 80)
+    
     previous_day = datetime.now() - timedelta(days=1)
     first_day = previous_day - timedelta(days=int(params["numberOfDays"]))
 
@@ -522,7 +538,10 @@ def main_serial(params):
 
 # %%
 def main_hybrid(params):
-    # Calculate the start date based on the days in params
+    # When using logging module, it crash iKernel so fallback to print method
+    print("*" * 80)
+    print("* Parallel execution")
+    print("*" * 80)
   
     previous_day = datetime.now() - timedelta(days=1)
     first_day = previous_day - timedelta(days=int(params["numberOfDays"]))
@@ -618,9 +637,9 @@ def main_hybrid(params):
             serial_fetching_stock_end_time = time.time()
             print(f"Serial fetching stock price history quotes completed in {serial_fetching_stock_end_time - serial_fetching_stock_start_time} seconds")
             elapsed_time = serial_fetching_stock_end_time - serial_fetching_stock_start_time
-        return results, elapsed_time
+        return results, elapsed_time, size
     else:
-        return None, None
+        return None, None, None
     
 
 
@@ -628,7 +647,7 @@ def main_hybrid(params):
 # ### Core Logic
 
 # %%
-def core_logic(df, index, params):
+def core_logic(row, params):
     # Remove data directory recursively if exists
     if os.path.exists("data"):
         os.system("rm -rf data")
@@ -640,7 +659,7 @@ def core_logic(df, index, params):
         "MACD": "MACD_S", 
     }, inplace=True)
     
-    temp_result, temp_elapsedtime = main_hybrid(params)
+    temp_result, temp_elapsedtime, temp_size = main_hybrid(params)
     if temp_result is not None:
         results["EMA12_P"] = temp_result["EMA12"]
         results["EMA26_P"] = temp_result["EMA26"]
@@ -648,16 +667,18 @@ def core_logic(df, index, params):
         results["MACD_P"] = temp_result["MACD"]
         
 
-    if not os.path.exists(os.environ["PROJECT_ROOT"] + "data"):
-        os.makedirs(os.environ["PROJECT_ROOT"] + "data")
-    results.to_csv(os.environ["PROJECT_ROOT"] + "data/results-%d-%d.csv" % (params["numberOfStocks"], params["numberOfDays"]), index=False)
+    if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
+        os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
+        
     
-    df.loc[index, "numberOfRows"] = results.shape[0]
-    df.loc[index, "serialElapsedTimes"] = serial_elapsedtime
-    df.loc[index, "parallelElapsedTimes"] = temp_elapsedtime
+    
+    filename = os.environ["PROJECT_ROOT"] + f"outputs/results-{temp_size}-{params['numberOfStocks']}-{params['numberOfDays']}.csv"
+    print(f"filename: {filename}")
+    
+    results.to_csv(filename, index=False)
     
     print("Returning df from core_logic")
-    return df
+    return temp_size, results.shape[0], serial_elapsedtime, temp_elapsedtime
         
     
 
@@ -675,6 +696,7 @@ df["numberOfRows"] = df["numberOfStocks"] * df["numberOfDays"]
 # Fill zeros
 df["serialElapsedTimes"] = [0.0] * len(df)
 df["parallelElapsedTimes"] = [0.0] * len(df)
+df["numberOfProcesses"] = [0] * len(df)
 
 for index, row in df.iterrows():
     print(f"Processing {row['numberOfStocks']} stocks for {row['numberOfDays']} days")
@@ -682,9 +704,16 @@ for index, row in df.iterrows():
     params["numberOfDays"] = row["numberOfDays"].astype(int)
     
     print(f"Params: {params}")
-    df = core_logic(df, index, params)
+    numberOfProcesses, numberOfRows, serialElapsedTime, parrallelElapsedTime = core_logic(row, params)
+    df.loc[index, "numberOfProcesses"] = numberOfProcesses
+    df.loc[index, "numberOfRows"] = numberOfRows
+    df.loc[index, "serialElapsedTimes"] = serialElapsedTime
+    df.loc[index, "parallelElapsedTimes"] = parrallelElapsedTime
     
     print("Received df from core_logic")
+    
+filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-{numberOfProcesses}.csv"
+df.to_csv(filename, index=False)
 
 # Clean up MPI, CUDA and data
 if params["mpi_installed"]:
