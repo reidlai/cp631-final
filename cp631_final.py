@@ -193,17 +193,16 @@ if params["in_notebook"] and importlib.util.find_spec("numba") is None:
     subprocess.run(["conda", "install", "numba=0.55.0", "-y"])
 
 # %%
-# from numba import cuda
+from numba import cuda
 
-# def is_cuda_installed():
-#     try:
-#         cuda.detect()
-#         return True
-#     except cuda.CudaSupportError:
-#         return False
+def is_cuda_installed():
+    try:
+        cuda.detect()
+        return True
+    except cuda.CudaSupportError:
+        return False
 
-# params["cuda_installed"] = is_cuda_installed()
-params["cuda_installed"] = False    
+params["cuda_installed"] = is_cuda_installed()    
 print(f'CUDA installed: {params["cuda_installed"]}')
 
 if not params["cuda_installed"]:
@@ -346,16 +345,6 @@ kaggle.api.dataset_download_files('reidlai/s-and-p-500-constituents', path="s-an
 # ## Stock Price History Download
 
 # %%
-# class Row:
-#     def __init__(self, timestamp, open, high, low, close, adjclose, volume):
-#         self.timestamp = timestamp
-#         self.open = open
-#         self.high = high
-#         self.low = low
-#         self.close = close
-#         self.adjclose = adjclose
-#         self.volume = volume
-
 def get_stock_price_history_quotes(stock_symbol, start_date, end_date):
     start_date = datetime.strptime(start_date, "%Y-%m-%dT%H:%M:%S")
     end_date = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S")
@@ -379,17 +368,8 @@ def get_stock_price_history_quotes(stock_symbol, start_date, end_date):
     except Exception as e:
         pass
 
-
-    # for index, row in data.iterrows():
-    #     quote = Row(index, row['Open'], row['High'], row['Low'], row['Close'], row['Adj Close'], row['Volume'])
-    #     quotes.append(quote)
-
-    # quotes.sort(key=lambda x: x.timestamp)
     quotes_df.sort_values(by='timestamp', inplace=True)
 
-    # convert quotes into dataframe
-    # quotes_df = pd.DataFrame([vars(quote) for quote in quotes])
-    # add symbol column
     if quotes_df.shape[0] > 0:
         quotes_df['symbol'] = stock_symbol
     return quotes_df
@@ -453,8 +433,9 @@ if params["cuda_installed"]:
         ema26_device = cuda.to_device(df["EMA26"].values)
         macd_device = cuda.to_device(np.empty_like(df["EMA12"].values))
         macd_cuda[df["EMA12"].shape[0], 1](ema12_device, ema26_device, macd_device)
+        cuda.synchronize()
         macd = macd_device.copy_to_host()
-        
+        cuda.current_context().memory_manager.deallocations.clear()
         df["MACD"] = macd
         return df
 
