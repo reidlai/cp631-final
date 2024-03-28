@@ -435,7 +435,14 @@ if params["cuda_installed"]:
         macd_cuda[df["EMA12"].shape[0], 1](ema12_device, ema26_device, macd_device)
         cuda.synchronize()
         macd = macd_device.copy_to_host()
-        cuda.current_context().memory_manager.deallocations.clear()
+        
+        del ema12_device
+        del ema26_device
+        del macd_device
+        
+        cuda.synchronize()
+        # cuda.current_context().memory_manager.deallocations.clear()
+        
         df["MACD"] = macd
         return df
 
@@ -706,6 +713,7 @@ if params["mpi_installed"]:
     print("MPI Finalized")
 
 if params["cuda_installed"]:
+        
     cuda.close()
     print("CUDA closed")
     
