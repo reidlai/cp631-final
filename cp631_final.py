@@ -102,12 +102,12 @@ print(f"in_notebook: {params['in_notebook']}")
 # In this code, platform.system() returns the name of the operating system dependent module imported. The returned value is 'Darwin' for MacOS, 'Linux' for Linux, 'Windows' for Windows and so on. If the returned value is 'Darwin', it means you are using MacOS.
 
 # %%
-import subprocess
-import importlib.util
+# import subprocess
+# import importlib.util
 
-if params["in_notebook"] and importlib.util.find_spec("distro") is None:
-    # !conda install distro -y
-    subprocess.run(["conda", "install", "distro", "-y"])
+# if params["in_notebook"] and importlib.util.find_spec("distro") is None:
+#     # !conda install distro -y
+#     subprocess.run(["conda", "install", "distro", "-y"])
 
 # %%
 import platform
@@ -165,23 +165,35 @@ print(f"is_wsl: {params['is_wsl']}")
 # Use the mpirun command to see if MPI is up and running.
 
 # %%
-import subprocess
+# import subprocess
 
-def is_mpi_installed():
-    try:
-        if params["is_macos"]:
-          subprocess.check_output(["/usr/local/bin/mpirun", "--version"])
-        else:
-          subprocess.check_output(["mpirun", "--version"])
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
+# def is_mpi_installed():
+#     try:
+#         if params["is_macos"]:
+#           subprocess.check_output(["/usr/local/bin/mpirun", "--version"])
+#         else:
+#           subprocess.check_output(["mpirun", "--version"])
+#         return True
+#     except (subprocess.CalledProcessError, FileNotFoundError):
+#         return False
 
-params["mpi_installed"] = is_mpi_installed()
-print(f'MPI installed: {params["mpi_installed"]}')
+# params["mpi_installed"] = is_mpi_installed()
+# print(f'MPI installed: {params["mpi_installed"]}')
 
-if not params["mpi_installed"]:
-    print("[FATAL] MPI is not installed")
+# if not params["mpi_installed"]:
+#     print("[FATAL] MPI is not installed")
+
+from mpi4py import MPI
+
+comm = MPI.COMM_WORLD
+if comm.Get_size() > 0:
+    params["mpi_installed"] = True
+    print(f'MPI installed: {params["mpi_installed"]}')
+else:
+    params["mpi_installed"] = False
+    print(f'MPI installed: {params["mpi_installed"]}')
+    print("MPI is not installed or only has one process")
+
 
 # %% [markdown]
 # ### Check if NVIDIA CUDA toolkit installed
@@ -189,8 +201,8 @@ if not params["mpi_installed"]:
 # Use the numba command to see if MPI is up and running.
 
 # %%
-if params["in_notebook"] and importlib.util.find_spec("numba") is None:
-    subprocess.run(["conda", "install", "numba=0.55.0", "-y"])
+# if params["in_notebook"] and importlib.util.find_spec("numba") is None:
+#     subprocess.run(["conda", "install", "numba=0.55.0", "-y"])
 
 # %%
 from numba import cuda
@@ -269,39 +281,41 @@ if params["in_notebook"]:
 # Installing PyPi packages is an essential step in this notebook. Among the mandatory packages, mpi4py and opendatasets provide crucial functionalities for data manipulation, distributed computing, and accessing large datasets. While Google Colab offers the convenience of bundled packages such as numpy, matplotlib, pandas, and seaborn, these packages still need to be installed separately in a local environment.
 
 # %%
-if params["in_notebook"]:
-    subprocess.run(["conda", "install", "pip", "-y"])
-    if importlib.util.find_spec("mpi4py") is None:
-        subprocess.run(["conda", "install", "-c", "conda-forge", "mpi4py=3.1.4", "-y"])
-    if importlib.util.find_spec("kaggle") is None:
-        subprocess.run(["conda", "install", "-c", "conda-forge", "kaggle", "-y"])
-    # if importlib.util.find_spec("opendatasets") is None:
-    #     subprocess.run(["conda", "install", "-c", "conda-forge", "opendatasets", "-y"])
-    if importlib.util.find_spec("yfinance") is None:
-        subprocess.run(["conda", "install", "-c", "conda-forge", "yfinance", "-y"])
+# if params["in_notebook"]:
+#     # subprocess.run(["conda", "install", "pip", "-y"])
+#     if importlib.util.find_spec("mpi4py") is None:
+#         subprocess.run(["conda", "install", "-c", "conda-forge", "mpi4py=3.1.4", "-y"])
+#     if importlib.util.find_spec("kaggle") is None:
+#         subprocess.run(["conda", "install", "-c", "conda-forge", "kaggle", "-y"])
+#     # if importlib.util.find_spec("opendatasets") is None:
+#     #     subprocess.run(["conda", "install", "-c", "conda-forge", "opendatasets", "-y"])
+#     if importlib.util.find_spec("yfinance") is None:
+#         subprocess.run(["conda", "install", "-c", "conda-forge", "yfinance", "-y"])
 
-    if not params["in_colab"]:
-        print("Installing required packages for local environment")
-        if importlib.util.find_spec("numpy") is None:
-            subprocess.run(["conda", "install", "numpy", "-y"])
-        if importlib.util.find_spec("matplotlib") is None:
-            subprocess.run(["conda", "install", "matplotlib", "-y"])
-        if importlib.util.find_spec("seaborn") is None:
-            subprocess.run(["conda", "install", "seaborn", "-y"])
-        if importlib.util.find_spec("pandas") is None:
-            subprocess.run(["conda", "install", "pandas", "-y"])
+#     if not params["in_colab"]:
+#         print("Installing required packages for local environment")
+#         if importlib.util.find_spec("numpy") is None:
+#             subprocess.run(["conda", "install", "numpy", "-y"])
+#         if importlib.util.find_spec("matplotlib") is None:
+#             subprocess.run(["conda", "install", "matplotlib", "-y"])
+#         if importlib.util.find_spec("seaborn") is None:
+#             subprocess.run(["conda", "install", "seaborn", "-y"])
+#         if importlib.util.find_spec("pandas") is None:
+#             subprocess.run(["conda", "install", "pandas", "-y"])
         
-        if params["cuda_installed"]:
-            if importlib.util.find_spec("cudatoolit") is None:
-                subprocess.run(["conda", "install", "cudatoolkit", "-y"])
+#         if params["cuda_installed"]:
+#             if importlib.util.find_spec("cudatoolit") is None:
+#                 subprocess.run(["conda", "install", "cudatoolkit", "-y"])
 
-        print("Common required packages installed")
+#         print("Common required packages installed")
 
 
 # %% [markdown]
 # Check numba info
 
 # %%
+import subprocess
+
 if params["cuda_installed"]:
     subprocess.run(["nvcc", "--version"])
 
@@ -324,8 +338,7 @@ import yfinance as yf
 
 from datetime import datetime, timedelta
 
-if params["mpi_installed"]:
-    from mpi4py import MPI
+from mpi4py import MPI
 
 if params["cuda_installed"]:
     from numba import cuda, float32
