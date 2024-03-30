@@ -439,8 +439,8 @@ if params["cuda_installed"]:
         del ema26_device
         del macd_device
         
-        # cuda.synchronize()
-        # cuda.current_context().memory_manager.deallocations.clear()
+        cuda.synchronize()
+        cuda.current_context().memory_manager.deallocations.clear()
         
         df["MACD"] = macd
         return df
@@ -705,17 +705,6 @@ for index, row in df.iterrows():
     
 filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-{numberOfProcesses}.csv"
 df.to_csv(filename, index=False)
-
-# Clean up MPI, CUDA and data
-if params["mpi_installed"]:
-    MPI.Finalize()
-    print("MPI Finalized")
-
-# if params["cuda_installed"]:
-        
-#     cuda.close()
-#     print("CUDA closed")
-    
 
 print(df)
         
