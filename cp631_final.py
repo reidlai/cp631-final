@@ -4,6 +4,19 @@
 # %% [markdown]
 # ### Course Server Setup
 # 
+# #### Git clone repository or extract submitted file in home directory
+# 
+# If you have the zip file of this project source code, just unzip at your home directory.  
+# 
+# If you don't have the source code on hand, you can clone the source from git repository by the following command
+# 
+# ```bash
+# git clone https://github.com/reidlai/cp631-final
+# ```
+# 
+# ~/cp631-final will be this project root folder.
+# 
+# 
 # #### Miniconda 3 setup
 # 
 # Miniconda is a lightweight, open-source package and environment manager developed by Anaconda, Inc. It provides a simple and efficient way to install, manage, and distribute Python packages and their dependencies across multiple platforms, including Windows, macOS, and Linux. Unlike Anaconda, which includes a large collection of pre-installed scientific computing packages, Miniconda only ships the core Conda functionality, allowing users to customize their own package collections according to their specific requirements. With Miniconda, users can easily create isolated environments, switch between them, and share them with others via portable archives or cloud services. Additionally, Miniconda supports fast and parallel package installation through its mamba engine, which significantly improves the overall performance and usability of Conda. Overall, Miniconda offers a flexible and scalable solution for managing Python packages and environments, especially for data scientists, researchers, and developers who work with complex and diverse datasets and applications.
@@ -37,10 +50,11 @@
 # The conda install command is utilized to install packages in a specific conda environment, with the --name flag specifying the name of the environment.
 # 
 # ```bash
+# cd ~/cp631-final # change directory to project root
 # conda install --name cp631-final requirement.txt
 # ```
 # 
-# #### SSH Tunneling
+# #### SSH Tunneling for remote Jupyter Notebook connection
 # 
 # To allow local machine connecting to Jupyter Notebook server running in course server, VPN connection must be up and running.  Then you can use SSH Tunnelling to forward all traffic of port 8888 in local macine to course server.
 # 
@@ -48,7 +62,7 @@
 # ssh -L 8888:localhost:8888 wlai11@mcs1.wlu.ca
 # ```
 # 
-# #### Start Jupyter Notebook
+# #### Start Jupyter Notebook server 
 # 
 # Once the shell has been spawn in remote server, run the following command to start jupyter notebook server with new conda environment cp631-final
 # 
@@ -56,6 +70,8 @@
 # conda activate cp631-final
 # jupyter notebook --no-browser --port=8888
 # ```
+# 
+# All traffice at port 8888 will forward to localhost port
 
 # %% [markdown]
 # ### Delare params dict
@@ -100,14 +116,6 @@ print(f"in_notebook: {params['in_notebook']}")
 # ### MacOS Environment Checking
 # 
 # In this code, platform.system() returns the name of the operating system dependent module imported. The returned value is 'Darwin' for MacOS, 'Linux' for Linux, 'Windows' for Windows and so on. If the returned value is 'Darwin', it means you are using MacOS.
-
-# %%
-# import subprocess
-# import importlib.util
-
-# if params["in_notebook"] and importlib.util.find_spec("distro") is None:
-#     # !conda install distro -y
-#     subprocess.run(["conda", "install", "distro", "-y"])
 
 # %%
 import platform
@@ -163,30 +171,17 @@ print(f"is_wsl: {params['is_wsl']}")
 # ### Check if MPI installed in OS
 # 
 # Use the mpirun command to see if MPI is up and running.
+# 
+# **Remarks**: We cannot use subprocess module to spawn os command "mpirun" to check because mprun will call this script in later testing stage and crash with recursive call error.
 
 # %%
-# import subprocess
-
-# def is_mpi_installed():
-#     try:
-#         if params["is_macos"]:
-#           subprocess.check_output(["/usr/local/bin/mpirun", "--version"])
-#         else:
-#           subprocess.check_output(["mpirun", "--version"])
-#         return True
-#     except (subprocess.CalledProcessError, FileNotFoundError):
-#         return False
-
-# params["mpi_installed"] = is_mpi_installed()
-# print(f'MPI installed: {params["mpi_installed"]}')
-
-# if not params["mpi_installed"]:
-#     print("[FATAL] MPI is not installed")
-
 from mpi4py import MPI
 
 comm = MPI.COMM_WORLD
-if comm.Get_size() > 0:
+size = comm.Get_size()
+rank = comm.Get_rank()
+
+if size > 0:
     params["mpi_installed"] = True
     print(f'MPI installed: {params["mpi_installed"]}')
 else:
@@ -198,11 +193,7 @@ else:
 # %% [markdown]
 # ### Check if NVIDIA CUDA toolkit installed
 # 
-# Use the numba command to see if MPI is up and running.
-
-# %%
-# if params["in_notebook"] and importlib.util.find_spec("numba") is None:
-#     subprocess.run(["conda", "install", "numba=0.55.0", "-y"])
+# Use the numba command to see if CUDA toolkit works properly.
 
 # %%
 from numba import cuda
@@ -214,58 +205,12 @@ def is_cuda_installed():
     except cuda.CudaSupportError:
         return False
 
-params["cuda_installed"] = is_cuda_installed()    
-print(f'CUDA installed: {params["cuda_installed"]}')
+if rank == 0:
+    params["cuda_installed"] = is_cuda_installed()    
+    print(f'CUDA installed: {params["cuda_installed"]}')
 
-if not params["cuda_installed"]:
-    print("[FATAL] CUDA is not installed")
-
-# %% [markdown]
-# ### Install MPI and CUDA if not installed
-
-# %% [markdown]
-# **Reminder**: Because latest Macbook does not bundle with NVIDIA CUDA compatible GPU and CUDA toolkits since at least CUDA 4.0 have not supported an ability to run cuda code without a GPU, this program cannot support MacOS environment.
-
-# %% [markdown]
-# If mpi_installed of the above result show False, please install openmpi binary and library based on your platform.
-# 
-# In Ubuntu you can install Open MPI as follow
-# 
-# ```bash
-# sudo apt update
-# sudo apt install openmpi-bin
-# sudo apt install libopenmpi-dev
-# ```
-# 
-# The following code will install Open MPI in Google Colab
-
-# %%
-import os
-
-if params["in_notebook"]:
-    if params["in_colab"] and not params["mpi_installed"]:
-        print("Installing MPI")
-        subprocess.run(["conda", "install", "openmpi", "-y" ])
-        print("MPI installed")
-    elif params["mpi_installed"]:
-        print("MPI is installed")
-
-# %% [markdown]
-# if cuda_installed show False, please install NVIDIA CUDA toolkit in your platform
-# 
-# In Ubuntu (except Ubuntu WSL 2.0 under Windows 10/11) you can install CUDA as follow
-# 
-# ```bash
-# sudo apt update
-# sudo apt install -y gpupg2
-# wget https://developer.download.nvidia.com/compute/cuda/repos/debian10/x86_64/cuda-repo-debian10_10.2.89-1_amd64.deb
-# sudo dpkg -i cuda-repo-debian10_10.2.89-1_amd64.deb
-# sudo apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/debian10/x86_64/7fa2af80.pub
-# sudo apt update
-# sudo apt-get install cuda
-# ```
-# 
-# Under Google Colab, cuda is bundled.
+    if not params["cuda_installed"]:
+        print("[FATAL] CUDA is not installed")
 
 # %% [markdown]
 # ## Environment Setup
@@ -279,39 +224,15 @@ if params["in_notebook"]:
 # ### Install PyPi packages
 # 
 # Installing PyPi packages is an essential step in this notebook. Among the mandatory packages, mpi4py and opendatasets provide crucial functionalities for data manipulation, distributed computing, and accessing large datasets. While Google Colab offers the convenience of bundled packages such as numpy, matplotlib, pandas, and seaborn, these packages still need to be installed separately in a local environment.
-
-# %%
-# if params["in_notebook"]:
-#     # subprocess.run(["conda", "install", "pip", "-y"])
-#     if importlib.util.find_spec("mpi4py") is None:
-#         subprocess.run(["conda", "install", "-c", "conda-forge", "mpi4py=3.1.4", "-y"])
-#     if importlib.util.find_spec("kaggle") is None:
-#         subprocess.run(["conda", "install", "-c", "conda-forge", "kaggle", "-y"])
-#     # if importlib.util.find_spec("opendatasets") is None:
-#     #     subprocess.run(["conda", "install", "-c", "conda-forge", "opendatasets", "-y"])
-#     if importlib.util.find_spec("yfinance") is None:
-#         subprocess.run(["conda", "install", "-c", "conda-forge", "yfinance", "-y"])
-
-#     if not params["in_colab"]:
-#         print("Installing required packages for local environment")
-#         if importlib.util.find_spec("numpy") is None:
-#             subprocess.run(["conda", "install", "numpy", "-y"])
-#         if importlib.util.find_spec("matplotlib") is None:
-#             subprocess.run(["conda", "install", "matplotlib", "-y"])
-#         if importlib.util.find_spec("seaborn") is None:
-#             subprocess.run(["conda", "install", "seaborn", "-y"])
-#         if importlib.util.find_spec("pandas") is None:
-#             subprocess.run(["conda", "install", "pandas", "-y"])
-        
-#         if params["cuda_installed"]:
-#             if importlib.util.find_spec("cudatoolit") is None:
-#                 subprocess.run(["conda", "install", "cudatoolkit", "-y"])
-
-#         print("Common required packages installed")
-
+# 
+# Run the following code in shell to install all required library and packages
+# 
+# ```bash
+# conda install --file requirements.txt
+# ```
 
 # %% [markdown]
-# Check numba info
+# ### Check CUDA Toolkit and Numba info
 
 # %%
 import subprocess
@@ -350,15 +271,16 @@ if params["cuda_installed"]:
 # I will first need to download S&P 500 constituents from my Kaggle repository
 
 # %%
-# od.download("https://www.kaggle.com/datasets/reidlai/s-and-p-500-constituents")
 kaggle.api.authenticate()
 kaggle.api.dataset_download_files('reidlai/s-and-p-500-constituents', path="s-and-p-500-constituents", unzip=True)
 
 # %% [markdown]
 # ## Stock Price History Download
+# 
+# get_stock_price_history_quotes function will download individual stock price history within range between start_date and end_date.
 
 # %%
-def get_stock_price_history_quotes(stock_symbol, start_date, end_date):
+def get_stock_price_history_quotes(stock_symbol, start_date, end_date) -> pd.DataFrame:
     start_date = datetime.strptime(start_date, "%Y-%m-%dT%H:%M:%S")
     end_date = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S")
     
@@ -368,9 +290,7 @@ def get_stock_price_history_quotes(stock_symbol, start_date, end_date):
         return None
 
     try:
-        # TODO: fixing kernel crash when passing progress=False to yf.download function
-        # data = yf.download(stock_symbol, start=start_date, end=end_date, progress=False)
-        data = yf.download(stock_symbol, start=start_date, end=end_date)
+        data = yf.download(stock_symbol, start=start_date, end=end_date, progress=False)
         quotes_df['timestamp'] = data.index
         quotes_df['open'] = data['Open']
         quotes_df['high'] = data['High']
@@ -392,9 +312,11 @@ def get_stock_price_history_quotes(stock_symbol, start_date, end_date):
 
 # %% [markdown]
 # ### EMA
+# 
+# As per proposal, we understand EMA is based on EMA value of T-1 day.  So there is dependency of daily record. And this is the main reason we cannot use CUDA for calculation.
 
 # %%
-def ema(values, days=12):
+def ema(values, days=12) -> np.ndarray:
     alpha = 2 / (days + 1)
     ema_values = np.empty_like(values)  # create an array to store all EMA values
     ema_values[0] = values[0]  # start with the first value
@@ -405,9 +327,11 @@ def ema(values, days=12):
 
 # %% [markdown]
 # ### RSI
+# 
+# As per proposal, we understand RSI is based on value of EMA 12 and 26. So, same as ema function, there is dependency of daily records. And this is the main reason we cannot use CUDA for calculation.
 
 # %%
-def rsi(values, days=14):
+def rsi(values, days=14) -> float:
     gains = []
     losses = []
     for i in range(1, len(values)):
@@ -426,10 +350,18 @@ def rsi(values, days=14):
 
 # %% [markdown]
 # ### MACD
+# 
+# In this section, we'll define three functions - macd, macd_cuda, and macd_gpu.
+# 
+# * macd function is a serial version to use dataframe calculating MACD
+# 
+# * macd_cuda is CUDA kernel function which has similar logic like macd except using numpy array
+# 
+# * macd_gpu is a wrapper function to copy data frame values into CUDA device memory and transfer back to host.
 
 # %%
 
-def macd(df, short_period=12, long_period=26, signal_period=9):
+def macd(df, short_period=12, long_period=26, signal_period=9) -> pd.DataFrame:
 
     df["MACD"] = df["EMA12"] - df["EMA26"]
     return df
@@ -459,10 +391,7 @@ if params["cuda_installed"]:
         return df
 
 # %% [markdown]
-# ## Core Main Program
-
-# %% [markdown]
-# ### Read CSV files
+# ### Read stock symbols from CSV file
 
 # %%
 # Read symbols from the CSV file
@@ -476,7 +405,7 @@ def read_symbols_from_csvfile(csvfile_path):
     return symbols
 
 # %% [markdown]
-# ### Calculating EMA12, EMA26 and RSI
+# ### Calculating EMA12, EMA26 and RSI for Serial and Parallel programming pattern
 
 # %%
 def emarsi(mode, symbols, start_date, end_date, rank, size, params):
@@ -493,6 +422,9 @@ def emarsi(mode, symbols, start_date, end_date, rank, size, params):
             stock_price_history_df['RSI'] = stock_price_history_df['close'].rolling(window=14).apply(rsi, raw=True)
             results = pd.concat([results, stock_price_history_df])
     return results
+
+# %% [markdown]
+# ## Main Program
 
 # %% [markdown]
 # ### Main Logic with Serial Programming
@@ -673,15 +605,13 @@ def core_logic(row, params):
 
     if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
         os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
-        
-    
     
     filename = os.environ["PROJECT_ROOT"] + f"outputs/results-{temp_size}-{params['numberOfStocks']}-{params['numberOfDays']}.csv"
     print(f"filename: {filename}")
     
     results.to_csv(filename, index=False)
+    print("Results saved to CSV file {filename}")
     
-    print("Returning df from core_logic")
     return temp_size, results.shape[0], serial_elapsedtime, temp_elapsedtime
         
     
@@ -714,12 +644,10 @@ for index, row in df.iterrows():
     df.loc[index, "serialElapsedTimes"] = serialElapsedTime
     df.loc[index, "parallelElapsedTimes"] = parrallelElapsedTime
     
-    print("Received df from core_logic")
     
 filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-{numberOfProcesses}.csv"
 df.to_csv(filename, index=False)
-
-print(df)
+print(f"Saved stats to {filename}")
         
 
 
