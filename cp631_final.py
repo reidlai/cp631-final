@@ -51,7 +51,9 @@
 # 
 # ```bash
 # cd ~/cp631-final # change directory to project root
-# conda install --name cp631-final requirement.txt
+# conda install --name cp631-final conda_requirements.txt
+# rm ~/miniconda3/envs/cp631-final/compiler_compat/ld
+# pip3 install -f pip3_requirements.txt
 # ```
 # 
 # #### SSH Tunneling for remote Jupyter Notebook connection
@@ -181,13 +183,13 @@ comm = MPI.COMM_WORLD
 size = comm.Get_size()
 rank = comm.Get_rank()
 
-if size > 0:
-    params["mpi_installed"] = True
-    print(f'MPI installed: {params["mpi_installed"]}')
-else:
-    params["mpi_installed"] = False
-    print(f'MPI installed: {params["mpi_installed"]}')
-    print("MPI is not installed or only has one process")
+# if size > 0:
+#     params["mpi_installed"] = True
+#     print(f'MPI installed: {params["mpi_installed"]}')
+# else:
+#     params["mpi_installed"] = False
+#     print(f'MPI installed: {params["mpi_installed"]}')
+    # print("MPI is not installed or only has one process")
 
 
 # %% [markdown]
@@ -235,14 +237,14 @@ if rank == 0:
 # ### Check CUDA Toolkit and Numba info
 
 # %%
-import subprocess
+# import subprocess
 
-if params["cuda_installed"]:
-    subprocess.run(["nvcc", "--version"])
+# if rank == 0 and params["cuda_installed"]:
+#     subprocess.run(["nvcc", "--version"])
 
 # %%
-if params["in_notebook"] and params["cuda_installed"]:
-    subprocess.run(["numba", "-s"])
+# if rank == 0 and params["in_notebook"] and params["cuda_installed"]:
+#     subprocess.run(["numba", "-s"])
 
 # %% [markdown]
 # ### Import required packages
@@ -258,8 +260,6 @@ import time
 import yfinance as yf
 
 from datetime import datetime, timedelta
-
-from mpi4py import MPI
 
 if params["cuda_installed"]:
     from numba import cuda, float32
@@ -498,14 +498,10 @@ def main_hybrid(params):
         print("CUDA is not available")
         gpu_cores = 0
         
-    if params["mpi_installed"]:
 
-        # MPI WTime
-        parallel_fetching_stock_start_time = MPI.Wtime()
+    # MPI WTime
+    parallel_fetching_stock_start_time = MPI.Wtime()
 
-    else:
-        
-        serial_fetching_stock_start_time = time.time()
 
     print(f"Rank: {rank}, Size: {size}")
 
@@ -540,32 +536,30 @@ def main_hybrid(params):
     print(f"params: {params}")
 
     results = emarsi("parallel", local_symbols, start_date, end_date, rank, size, params)
+    if comm and rank > 0:
+        # remote_result = comm.gather(results, root=0)
+        comm.send(results, dest=0)
+        return None, None
 
-    ## Gather the results from all processes
-    remote_results = pd.DataFrame()
-    if comm:
-        remote_result = comm.gather(results, root=0)
-
-    if rank == 0:
-        results = pd.concat([results, remote_results])
+    elif rank == 0:
+        
+        for i in range(1, size):
+            remote_results = comm.recv(source=i)
+            results = pd.concat([results, remote_results])
+            
         if params["cuda_installed"]:
             results = macd_gpu(results)
         else:
             results = macd(results)
         elapsed_time = 0.0;
-        if params["mpi_installed"] and comm:
-            # MPI WTime
-            parallel_fetching_stock_end_time = MPI.Wtime()
-            print(f"Parallel fetching stock price history quotes completed in {parallel_fetching_stock_end_time - parallel_fetching_stock_start_time} seconds")
-            elapsed_time = parallel_fetching_stock_end_time - parallel_fetching_stock_start_time
-        else:
-            serial_fetching_stock_end_time = time.time()
-            print(f"Serial fetching stock price history quotes completed in {serial_fetching_stock_end_time - serial_fetching_stock_start_time} seconds")
-            elapsed_time = serial_fetching_stock_end_time - serial_fetching_stock_start_time
+        
+        # MPI WTime
+        parallel_fetching_stock_end_time = MPI.Wtime()
+        print(f"Parallel fetching stock price history quotes completed in {parallel_fetching_stock_end_time - parallel_fetching_stock_start_time} seconds")
+        elapsed_time = parallel_fetching_stock_end_time - parallel_fetching_stock_start_time
+        
         return results, elapsed_time
-    else:
-        return None, None
-    
+
 
 
 # %% [markdown]
@@ -620,6 +614,8 @@ df["numberOfRows"] = df["numberOfStocks"] * df["numberOfDays"]
 df["serialElapsedTimes"] = [0.0] * len(df)
 df["parallelElapsedTimes"] = [0.0] * len(df)
 df["numberOfProcesses"] = [0] * len(df)
+
+print(f"MainBody: Rank: {rank}, Size: {size}")
 
 for index, row in df.iterrows():
     print(f"Processing {row['numberOfStocks']} stocks for {row['numberOfDays']} days")
