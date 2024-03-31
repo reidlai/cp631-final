@@ -499,23 +499,12 @@ def main_hybrid(params):
         gpu_cores = 0
         
     if params["mpi_installed"]:
-        # Initialize MPI
-        comm = MPI.COMM_WORLD
 
-        # check if mpi is initialized
-        if comm:
-            rank = comm.Get_rank()
-            size = comm.Get_size()
+        # MPI WTime
+        parallel_fetching_stock_start_time = MPI.Wtime()
 
-            # MPI WTime
-            parallel_fetching_stock_start_time = MPI.Wtime()
-        else:
-            rank = 0
-            size = 1
-            serial_fetching_stock_start_time = time.time()
     else:
-        rank = 0
-        size = 1
+        
         serial_fetching_stock_start_time = time.time()
 
     print(f"Rank: {rank}, Size: {size}")
@@ -573,9 +562,9 @@ def main_hybrid(params):
             serial_fetching_stock_end_time = time.time()
             print(f"Serial fetching stock price history quotes completed in {serial_fetching_stock_end_time - serial_fetching_stock_start_time} seconds")
             elapsed_time = serial_fetching_stock_end_time - serial_fetching_stock_start_time
-        return results, elapsed_time, size
+        return results, elapsed_time
     else:
-        return None, None, None
+        return None, None
     
 
 
@@ -595,7 +584,7 @@ def core_logic(row, params):
         "MACD": "MACD_S", 
     }, inplace=True)
     
-    temp_result, temp_elapsedtime, temp_size = main_hybrid(params)
+    temp_result, temp_elapsedtime = main_hybrid(params)
     if temp_result is not None:
         results["EMA12_P"] = temp_result["EMA12"]
         results["EMA26_P"] = temp_result["EMA26"]
@@ -606,13 +595,13 @@ def core_logic(row, params):
     if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
         os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
     
-    filename = os.environ["PROJECT_ROOT"] + f"outputs/results-{temp_size}-{params['numberOfStocks']}-{params['numberOfDays']}.csv"
+    filename = os.environ["PROJECT_ROOT"] + f"outputs/results-{size}-{params['numberOfStocks']}-{params['numberOfDays']}.csv"
     print(f"filename: {filename}")
     
     results.to_csv(filename, index=False)
     print("Results saved to CSV file {filename}")
     
-    return temp_size, results.shape[0], serial_elapsedtime, temp_elapsedtime
+    return results.shape[0], serial_elapsedtime, temp_elapsedtime
         
     
 
@@ -638,14 +627,14 @@ for index, row in df.iterrows():
     params["numberOfDays"] = row["numberOfDays"].astype(int)
     
     print(f"Params: {params}")
-    numberOfProcesses, numberOfRows, serialElapsedTime, parrallelElapsedTime = core_logic(row, params)
-    df.loc[index, "numberOfProcesses"] = numberOfProcesses
+    numberOfRows, serialElapsedTime, parrallelElapsedTime = core_logic(row, params)
+    df.loc[index, "numberOfProcesses"] = size
     df.loc[index, "numberOfRows"] = numberOfRows
     df.loc[index, "serialElapsedTimes"] = serialElapsedTime
     df.loc[index, "parallelElapsedTimes"] = parrallelElapsedTime
     
     
-filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-{numberOfProcesses}.csv"
+filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-{size}.csv"
 df.to_csv(filename, index=False)
 print(f"Saved stats to {filename}")
         
