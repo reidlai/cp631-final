@@ -125,28 +125,27 @@ def get_stock_price_history_quotes(stock_symbol, start_date, end_date) -> pd.Dat
     start_date = datetime.strptime(start_date, "%Y-%m-%dT%H:%M:%S")
     end_date = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S")
     
-    quotes_df = pd.DataFrame(columns=['symbol', 'timestamp', 'open', 'high', 'low', 'close', 'adjclose', 'volume'])
+    quotes_df = pd.DataFrame()
     
     if "." in stock_symbol:
         return None
 
     try:
         data = yf.download(stock_symbol, start=start_date, end=end_date, progress=False)
-        quotes_df['timestamp'] = data.index
-        quotes_df['open'] = data['Open']
-        quotes_df['high'] = data['High']
-        quotes_df['low'] = data['Low']
-        quotes_df['close'] = data['Close']
-        quotes_df['adjclose'] = data['Adj Close']
-        quotes_df['volume'] = data['Volume']
     except Exception as e:
         pass
-
-    quotes_df.sort_values(by='timestamp', inplace=True)
-
-    if quotes_df.shape[0] > 0:
-        quotes_df['symbol'] = stock_symbol
-    return quotes_df
+    data.reset_index(inplace=True)
+    data.rename(columns={
+        'Date': 'date', 
+        'Open': 'open',
+        'High': 'high',
+        'Low': 'low',
+        'Close': 'close',
+        'Adj Close': 'adjclose',
+        'Volume': 'volume'
+    }, inplace=True)
+    data.insert(0, 'symbol', [stock_symbol] * data.shape[0])
+    return data
 
 # %% [markdown]
 # ## Technical Analysis
@@ -249,12 +248,11 @@ def read_symbols_from_csvfile(csvfile_path):
 # ### Calculating EMA12, EMA26 and RSI for Serial and Parallel programming pattern
 
 # %%
-def emarsi(mode, symbols, start_date, end_date, rank, size, params):
+def emarsi(symbols, start_date, end_date, rank, size, params):
 
     results = pd.DataFrame()
     # Fetch stock price history quotes using the local symbols
     for symbol in symbols:
-
         # Load the stock price history data into pandas DataFrame
         stock_price_history_df = get_stock_price_history_quotes(symbol, start_date, end_date)
         if stock_price_history_df is not None and stock_price_history_df.shape[0] > 0:
@@ -445,66 +443,75 @@ def emarsi(mode, symbols, start_date, end_date, rank, size, params):
 
 # %%
 print(f"Rank: {rank}, Size: {size}")
-local_symbols = []
+local_symbols = np.array([])
+symbol_trunks = np.array([])
 
-if rank == 0:
-    df = pd.DataFrame()
-    df["numberOfStocks"] = [10, 50, 100, 200, 400]
-    df["numberOfDays"] = [30, 90, 180, 365, 730]
 
-    df["numberOfRows"] = df["numberOfStocks"] * df["numberOfDays"]
+df = pd.DataFrame()
+df["numberOfProcesses"] = [size] * 5
+df["numberOfStocks"] = [10, 50, 100, 200, 400]
+df["numberOfDays"] = [30, 90, 180, 365, 730]
 
-    # Fill zeros
-    df["serialElapsedTimes"] = [0.0] * len(df)
-    df["parallelElapsedTimes"] = [0.0] * len(df)
-    df["numberOfProcesses"] = [0] * len(df)
+df["numberOfRows"] = df["numberOfStocks"] * df["numberOfDays"]
 
-    print(f"MainBody: Rank: {rank}, Size: {size}")
+# Fill zeros
+df["serialElapsedTimes"] = [0.0] * len(df)
+df["parallelElapsedTimes"] = [0.0] * len(df)
+df["numberOfProcesses"] = [0] * len(df)
 
-    for index, row in df.iterrows():
-        print(f"Processing {row['numberOfStocks']} stocks for {row['numberOfDays']} days")
-        params["numberOfStocks"] = row["numberOfStocks"].astype(int)
-        params["numberOfDays"] = row["numberOfDays"].astype(int)
+print(f"MainBody: Rank: {rank}, Size: {size}")
+
+for index, row in df.iterrows():
+    print(f"Processing {row['numberOfStocks']} stocks for {row['numberOfDays']} days")
+
+    previous_day = datetime.now() - timedelta(days=1)
+    end_date = previous_day.strftime('%Y-%m-%dT%H:%M:%S')
+    first_day = previous_day - timedelta(days=int(row["numberOfDays"]))
+    start_date = first_day.strftime('%Y-%m-%dT%H:%M:%S')
+
+    data_dir = './data'
     
+    parallel_fetching_stock_start_time = MPI.Wtime()
     
-        previous_day = datetime.now() - timedelta(days=1)
-        end_date = previous_day.strftime('%Y-%m-%dT%H:%M:%S')
-        first_day = previous_day - timedelta(days=int(params["numberOfDays"]))
-        start_date = first_day.strftime('%Y-%m-%dT%H:%M:%S')
+    # Scatter symbols to all processes
+
+    symbols = read_symbols_from_csvfile(os.environ["PROJECT_ROOT"] + "s-and-p-500-constituents/sandp500-20240310.csv")
+    symbols = symbols[:row["numberOfStocks"].astype(int)]
     
-        data_dir = './data'
-        
-        parallel_fetching_stock_start_time = MPI.Wtime()
-        
-        # Scatter symbols to all processes
+    symbols_per_process = len(symbols) // size
+    remainder = len(symbols) % size
+    if remainder != 0 and rank < remainder:
+        symbols_per_process += 1
 
-        symbols = read_symbols_from_csvfile(os.environ["PROJECT_ROOT"] + "s-and-p-500-constituents/sandp500-20240310.csv")
-        symbols = symbols[:row["numberOfStocks"].astype(int)]
-        symbols_per_process = len(symbols) // size
-        if size > 1:
-            remainder = len(symbols) % size
-            if remainder != 0 and rank < remainder:
-                symbols_per_process += 1
-
-            # Scatter symbols to all processes and each process should receive length of symbols / size blocks
-            local_symbols = [symbols[i:i + symbols_per_process] for i in range(0, len(symbols), symbols_per_process)]
+    # Scatter symbols to all processes and each process should receive length of symbols / size blocks
+    symbol_trunks = [symbols[i:i + symbols_per_process] for i in range(0, len(symbols), symbols_per_process)]                             
+    local_symbols = comm.scatter(symbol_trunks, root=0)
+    
+    # Core logic
+    print(f"Rank: {rank}, local_symbols: {local_symbols}")
+    
+    remote_results = emarsi(local_symbols, start_date, end_date, rank, size, params)    
+    results = comm.gather(remote_results, root=0)
+    results = pd.concat(results)
+    
+    if rank == 0:
+        if not params.get("cuda_installed", False):
+            results = macd(results)
         else:
-            local_symbols = [symbols]
+            results = macd_gpu(results)
 
-        local_symbols = comm.scatter(local_symbols, root=0)
-        
-        results = emarsi("parallel", local_symbols, start_date, end_date, rank, size, params)
-        print(results)
-        
-        # df.loc[index, "numberOfProcesses"] = size
-        # df.loc[index, "numberOfRows"] = numberOfRows
-        # df.loc[index, "serialElapsedTimes"] = serialElapsedTime
-        # df.loc[index, "parallelElapsedTimes"] = parrallelElapsedTime
+    parallel_fetching_stock_end_time = MPI.Wtime()
+    numberOfStocks = row["numberOfStocks"].astype(int)
+    numberOfDays = row["numberOfDays"].astype(int)
+    results.to_csv(f"outputs/results-{size}-{numberOfStocks}-{numberOfDays}.csv", index=False)
+
+    df.loc[index, "numberOfProcesses"] = size
+    df.loc[index, "elapsedTimes"] = parallel_fetching_stock_end_time - parallel_fetching_stock_start_time
+
     
-    
-# filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-{size}.csv"
-# df.to_csv(filename, index=False)
-# print(f"Saved stats to {filename}")
+filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-{size}.csv"
+df.to_csv(filename, index=False)
+print(f"Saved stats to {filename}")
         
 
 
