@@ -314,39 +314,41 @@ for index, row in df.iterrows():
     symbol_trunks = [symbols[i:i + symbols_per_process] for i in range(0, len(symbols), symbols_per_process)]                             
     local_symbols = comm.scatter(symbol_trunks, root=0)
     
-    # Core logic
-    print(f"Rank: {rank}, local_symbols: {local_symbols}")
+    remote_results = emarsi(local_symbols, start_date, end_date, rank, size, params) 
+    print(f"Rank: {rank}, remote_results: {remote_results}")   
     
-    remote_results = emarsi(local_symbols, start_date, end_date, rank, size, params)    
     results = comm.gather(remote_results, root=0)
-    print(f"Rank: {rank}, results: {results}")
-    
-    results = pd.concat(results)
     
     if rank == 0:
-        if not params.get("cuda_installed", False):
-            results = macd(results)
-        else:
-            results = macd_gpu(results)
-
-    parallel_fetching_stock_end_time = MPI.Wtime()
-    numberOfStocks = row["numberOfStocks"].astype(int)
-    numberOfDays = row["numberOfDays"].astype(int)
+        print (f"Rank: {rank}, results: {results}")
     
-    if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
-        os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
+    # print(f"Rank: {rank}, results: {results}")
+    # results = pd.concat(results)
+    
+    # if rank == 0:
+    #     if not params.get("cuda_installed", False):
+    #         results = macd(results)
+    #     else:
+    #         results = macd_gpu(results)
+
+    # parallel_fetching_stock_end_time = MPI.Wtime()
+    # numberOfStocks = row["numberOfStocks"].astype(int)
+    # numberOfDays = row["numberOfDays"].astype(int)
+    
+    # if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
+    #     os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
         
-    results.to_csv(f"outputs/results-{size}-{numberOfStocks}-{numberOfDays}.csv", index=False)
+    # results.to_csv(f"outputs/results-{size}-{numberOfStocks}-{numberOfDays}.csv", index=False)
 
-    df.loc[index, "numberOfProcesses"] = size
-    df.loc[index, "elapsedTimes"] = parallel_fetching_stock_end_time - parallel_fetching_stock_start_time
+    # df.loc[index, "numberOfProcesses"] = size
+    # df.loc[index, "elapsedTimes"] = parallel_fetching_stock_end_time - parallel_fetching_stock_start_time
 
     
-filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-{size}.csv"
-if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
-    os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
-df.to_csv(filename, index=False)
-print(f"Saved stats to {filename}")
+# filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-{size}.csv"
+# if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
+#     os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
+# df.to_csv(filename, index=False)
+# print(f"Saved stats to {filename}")
         
 
 
@@ -362,38 +364,38 @@ print(f"Saved stats to {filename}")
 # ## Data Visualization
 
 # %%
-filename_1 = os.environ["PROJECT_ROOT"] + f"outputs/stats-1.csv"
+# filename_1 = os.environ["PROJECT_ROOT"] + f"outputs/stats-1.csv"
 
-if os.path.exists(filename_1):
-    df_stat_1 = pd.read_csv(filename)
-else:
-    df_stat_1 = None
+# if os.path.exists(filename_1):
+#     df_stat_1 = pd.read_csv(filename)
+# else:
+#     df_stat_1 = None
 
-filename_2 = os.environ["PROJECT_ROOT"] + f"outputs/stats-2.csv"
-if os.path.exists(filename_2):
-    df_stat_2 = pd.read_csv(filename)
-else:
-    df_stat_2 = None
+# filename_2 = os.environ["PROJECT_ROOT"] + f"outputs/stats-2.csv"
+# if os.path.exists(filename_2):
+#     df_stat_2 = pd.read_csv(filename)
+# else:
+#     df_stat_2 = None
     
-filename_4 = os.environ["PROJECT_ROOT"] + f"outputs/stats-4.csv"
-if os.path.exists(filename_4):
-    df_stat_4 = pd.read_csv(filename)
-else:
-    df_stat_4 = None
+# filename_4 = os.environ["PROJECT_ROOT"] + f"outputs/stats-4.csv"
+# if os.path.exists(filename_4):
+#     df_stat_4 = pd.read_csv(filename)
+# else:
+#     df_stat_4 = None
 
-filename_16 = os.environ["PROJECT_ROOT"] + f"outputs/stats-16.csv"
-if os.path.exists(filename_16):
-    df_stat_16 = pd.read_csv(filename)
-else:
-    df_stat_16 = None
+# filename_16 = os.environ["PROJECT_ROOT"] + f"outputs/stats-16.csv"
+# if os.path.exists(filename_16):
+#     df_stat_16 = pd.read_csv(filename)
+# else:
+#     df_stat_16 = None
 
-df_stat = pd.concat([df_stat_1, df_stat_2, df_stat_4, df_stat_16])
+# df_stat = pd.concat([df_stat_1, df_stat_2, df_stat_4, df_stat_16])
 
 # %%
-if params.get("in_notebook", False):
-    display(df_stat)
-else:
-    print(df_stat)
+# if params.get("in_notebook", False):
+#     display(df_stat)
+# else:
+#     print(df_stat)
 
 # %%
 if params.get("in_notebook", False):
