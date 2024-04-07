@@ -93,7 +93,6 @@ import seaborn as sns
 from datetime import datetime, timedelta
 from mpi4py import MPI
 
-
 # %% [markdown]
 # ### Initialize environment and variables
 
@@ -351,10 +350,11 @@ for index, row in df.iterrows():
         
         results.to_csv(f"outputs/results-{size}-{numberOfStocks}-{numberOfDays}.csv", index=False)
 
-if rank == 0:
-    df.loc[index, "numberOfProcesses"] = size
-    df.loc[index, "elapsedTimes"] = parallel_end_time - parallel_start_time
 
+        df.loc[index, "numberOfProcesses"] = size
+        df.loc[index, "elapsedTimes"] = parallel_end_time - parallel_start_time
+
+if rank == 0:
     filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-{size}.csv"
     if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
         os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
@@ -437,50 +437,69 @@ if rank == 0:
 # ## Data Visualization
 
 # %%
-filename_1 = os.environ["PROJECT_ROOT"] + f"outputs/stats-1.csv"
+os.environ["PROJECT_ROOT"] = "./"
+filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-1.csv"
 
-if os.path.exists(filename_1):
+if os.path.exists(filename):
     df_stat_1 = pd.read_csv(filename)
 else:
     df_stat_1 = None
 
-filename_2 = os.environ["PROJECT_ROOT"] + f"outputs/stats-2.csv"
-if os.path.exists(filename_2):
+filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-2.csv"
+if os.path.exists(filename):
     df_stat_2 = pd.read_csv(filename)
 else:
     df_stat_2 = None
     
-filename_4 = os.environ["PROJECT_ROOT"] + f"outputs/stats-4.csv"
-if os.path.exists(filename_4):
+filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-4.csv"
+if os.path.exists(filename):
     df_stat_4 = pd.read_csv(filename)
 else:
     df_stat_4 = None
     
-filename_8 = os.environ["PROJECT_ROOT"] + f"outputs/stats-8.csv"
-if os.path.exists(filename_8):
+filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-8.csv"
+if os.path.exists(filename):
     df_stat_8 = pd.read_csv(filename)
 else:
     df_stat_8 = None
 
-filename_16 = os.environ["PROJECT_ROOT"] + f"outputs/stats-16.csv"
-if os.path.exists(filename_16):
+filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-16.csv"
+if os.path.exists(filename):
     df_stat_16 = pd.read_csv(filename)
 else:
     df_stat_16 = None
 
-filename_32 = os.environ["PROJECT_ROOT"] + f"outputs/stats-32.csv"
-if os.path.exists(filename_32):
+filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-32.csv"
+if os.path.exists(filename):
     df_stat_32 = pd.read_csv(filename)
 else:
     df_stat_32 = None
     
-df_stat = pd.concat([df_stat_1, df_stat_2, df_stat_4, df_stat_4, df_stat_16, df_stat_32])
+df_stat = pd.concat([df_stat_1, df_stat_2, df_stat_4, df_stat_4, df_stat_16, df_stat_32,])
+df_stat.reset_index(drop=True, inplace=True)
 
 # %%
-# if params.get("in_notebook", False):
-#     display(df_stat)
-# else:
-#     print(df_stat)
+def is_notebook():
+    try:
+        shell = get_ipython().__class__.__name__
+        if shell == 'ZMQInteractiveShell':
+            return True   # Jupyter notebook or qtconsole
+        elif shell == 'TerminalInteractiveShell':
+            return False  # Terminal running IPython
+        else:
+            return False  # Other type (?)
+    except NameError:
+        return False      # Probably standard Python interpreter
+
+if is_notebook():
+    print("This is running in a Jupyter notebook")
+else:
+    print("This is not running in a Jupyter notebook")
+    
+if is_notebook():
+    display(df_stat)
+else:
+    print(df_stat)
 
 # %%
 if params.get("in_notebook", False):
