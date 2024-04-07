@@ -369,38 +369,112 @@ if rank == 0:
 # %% [markdown]
 # ```bash
 # mpirun -np 1 -mca opal_cuda_support 1 ~/miniconda3/envs/cp631-final/bin/python ~/cp631-final/cp631_final.py
+# mpirun -np 2 -mca opal_cuda_support 1 ~/miniconda3/envs/cp631-final/bin/python ~/cp631-final/cp631_final.py
+# mpirun -np 4 -mca opal_cuda_support 1 ~/miniconda3/envs/cp631-final/bin/python ~/cp631-final/cp631_final.py
+# mpirun -np 8 -mca opal_cuda_support 1 ~/miniconda3/envs/cp631-final/bin/python ~/cp631-final/cp631_final.py
+# mpirun -np 16 -mca opal_cuda_support 1 ~/miniconda3/envs/cp631-final/bin/python ~/cp631-final/cp631_final.py
+# mpirun -np 32 -mca opal_cuda_support 1 ~/miniconda3/envs/cp631-final/bin/python ~/cp631-final/cp631_final.py
+# ```
+
+# %% [markdown]
+# ```bash
+# (cp631-final) [wlai11@mcs1 cp631-final]$ mpirun -np 64 -mca opal_cuda_support 1 ~/miniconda3/envs/cp631-final/bin/python ~/cp631-final/cp631_final_v2.py
+# Traceback (most recent call last):
+#   File "/home/wlai11/cp631-final/cp631_final_v2.py", line 83, in <module>
+# Traceback (most recent call last):
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/pool.py", line 215, in __init__
+#     self._repopulate_pool()
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/pool.py", line 306, in _repopulate_pool
+# Traceback (most recent call last):
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/pool.py", line 215, in __init__
+#     self._repopulate_pool()
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/pool.py", line 306, in _repopulate_pool
+# Traceback (most recent call last):
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/pool.py", line 215, in __init__
+#     self._repopulate_pool()
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/pool.py", line 306, in _repopulate_pool
+# Traceback (most recent call last):
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/pool.py", line 215, in __init__
+#     self._repopulate_pool()
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/pool.py", line 306, in _repopulate_pool
+#     import kaggle
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/site-packages/kaggle/__init__.py", line 22, in <module>
+#     api = KaggleApi(ApiClient())
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/site-packages/kaggle/api_client.py", line 85, in __init__
+#     self.pool = ThreadPool()
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/pool.py", line 930, in __init__
+#     return self._repopulate_pool_static(self._ctx, self.Process,
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/pool.py", line 329, in _repopulate_pool_static
+#     return self._repopulate_pool_static(self._ctx, self.Process,
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/pool.py", line 329, in _repopulate_pool_static
+#     w.start()
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/dummy/__init__.py", line 51, in start
+#     return self._repopulate_pool_static(self._ctx, self.Process,
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/pool.py", line 329, in _repopulate_pool_static
+#     w.start()
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/dummy/__init__.py", line 51, in start
+#     return self._repopulate_pool_static(self._ctx, self.Process,
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/pool.py", line 329, in _repopulate_pool_static
+#     w.start()
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/dummy/__init__.py", line 51, in start
+#     threading.Thread.start(self)
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/threading.py", line 935, in start
+#     w.start()
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/dummy/__init__.py", line 51, in start
+#     threading.Thread.start(self)
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/threading.py", line 935, in start
+#     threading.Thread.start(self)
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/threading.py", line 935, in start
+#     threading.Thread.start(self)
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/threading.py", line 935, in start
+#     Pool.__init__(self, processes, initializer, initargs)
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/pool.py", line 245, in __init__
+#     _start_new_thread(self._bootstrap, ())
+# RuntimeError: can't start new thread
 # ```
 
 # %% [markdown]
 # ## Data Visualization
 
 # %%
-# filename_1 = os.environ["PROJECT_ROOT"] + f"outputs/stats-1.csv"
+filename_1 = os.environ["PROJECT_ROOT"] + f"outputs/stats-1.csv"
 
-# if os.path.exists(filename_1):
-#     df_stat_1 = pd.read_csv(filename)
-# else:
-#     df_stat_1 = None
+if os.path.exists(filename_1):
+    df_stat_1 = pd.read_csv(filename)
+else:
+    df_stat_1 = None
 
-# filename_2 = os.environ["PROJECT_ROOT"] + f"outputs/stats-2.csv"
-# if os.path.exists(filename_2):
-#     df_stat_2 = pd.read_csv(filename)
-# else:
-#     df_stat_2 = None
+filename_2 = os.environ["PROJECT_ROOT"] + f"outputs/stats-2.csv"
+if os.path.exists(filename_2):
+    df_stat_2 = pd.read_csv(filename)
+else:
+    df_stat_2 = None
     
-# filename_4 = os.environ["PROJECT_ROOT"] + f"outputs/stats-4.csv"
-# if os.path.exists(filename_4):
-#     df_stat_4 = pd.read_csv(filename)
-# else:
-#     df_stat_4 = None
+filename_4 = os.environ["PROJECT_ROOT"] + f"outputs/stats-4.csv"
+if os.path.exists(filename_4):
+    df_stat_4 = pd.read_csv(filename)
+else:
+    df_stat_4 = None
+    
+filename_8 = os.environ["PROJECT_ROOT"] + f"outputs/stats-8.csv"
+if os.path.exists(filename_8):
+    df_stat_8 = pd.read_csv(filename)
+else:
+    df_stat_8 = None
 
-# filename_16 = os.environ["PROJECT_ROOT"] + f"outputs/stats-16.csv"
-# if os.path.exists(filename_16):
-#     df_stat_16 = pd.read_csv(filename)
-# else:
-#     df_stat_16 = None
+filename_16 = os.environ["PROJECT_ROOT"] + f"outputs/stats-16.csv"
+if os.path.exists(filename_16):
+    df_stat_16 = pd.read_csv(filename)
+else:
+    df_stat_16 = None
 
-# df_stat = pd.concat([df_stat_1, df_stat_2, df_stat_4, df_stat_16])
+filename_32 = os.environ["PROJECT_ROOT"] + f"outputs/stats-32.csv"
+if os.path.exists(filename_32):
+    df_stat_32 = pd.read_csv(filename)
+else:
+    df_stat_32 = None
+    
+df_stat = pd.concat([df_stat_1, df_stat_2, df_stat_4, df_stat_4, df_stat_16, df_stat_32])
 
 # %%
 # if params.get("in_notebook", False):
