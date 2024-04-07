@@ -87,6 +87,9 @@ import random
 import time
 import yfinance as yf
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 from datetime import datetime, timedelta
 from mpi4py import MPI
 
@@ -455,8 +458,8 @@ df["numberOfDays"] = [30, 90, 180, 365, 730]
 df["numberOfRows"] = df["numberOfStocks"] * df["numberOfDays"]
 
 # Fill zeros
-df["serialElapsedTimes"] = [0.0] * len(df)
-df["parallelElapsedTimes"] = [0.0] * len(df)
+# df["serialElapsedTimes"] = [0.0] * len(df)
+# df["parallelElapsedTimes"] = [0.0] * len(df)
 df["numberOfProcesses"] = [0] * len(df)
 
 print(f"MainBody: Rank: {rank}, Size: {size}")
@@ -503,6 +506,10 @@ for index, row in df.iterrows():
     parallel_fetching_stock_end_time = MPI.Wtime()
     numberOfStocks = row["numberOfStocks"].astype(int)
     numberOfDays = row["numberOfDays"].astype(int)
+    
+    if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
+        os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
+        
     results.to_csv(f"outputs/results-{size}-{numberOfStocks}-{numberOfDays}.csv", index=False)
 
     df.loc[index, "numberOfProcesses"] = size
@@ -510,6 +517,8 @@ for index, row in df.iterrows():
 
     
 filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-{size}.csv"
+if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
+    os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
 df.to_csv(filename, index=False)
 print(f"Saved stats to {filename}")
         
@@ -526,14 +535,56 @@ print(f"Saved stats to {filename}")
 # %% [markdown]
 # ## Data Visualization
 
-# %% [markdown]
-# ## Performance Analysis
+# %%
+filename_1 = os.environ["PROJECT_ROOT"] + f"outputs/stats-1.csv"
 
-# %% [markdown]
-# # Exit
+if os.path.exists(filename_1):
+    df_stat_1 = pd.read_csv(filename)
+else:
+    df_stat_1 = None
+
+filename_2 = os.environ["PROJECT_ROOT"] + f"outputs/stats-2.csv"
+if os.path.exists(filename_2):
+    df_stat_2 = pd.read_csv(filename)
+else:
+    df_stat_2 = None
+    
+filename_4 = os.environ["PROJECT_ROOT"] + f"outputs/stats-4.csv"
+if os.path.exists(filename_4):
+    df_stat_4 = pd.read_csv(filename)
+else:
+    df_stat_4 = None
+
+filename_16 = os.environ["PROJECT_ROOT"] + f"outputs/stats-16.csv"
+if os.path.exists(filename_16):
+    df_stat_16 = pd.read_csv(filename)
+else:
+    df_stat_16 = None
+
+df_stat = pd.concat([df_stat_1, df_stat_2, df_stat_4, df_stat_16])
 
 # %%
-if not params["in_notebook"]:
-    exit(0)
+if params.get("in_notebook", False):
+    display(df_stat)
+else:
+    print(df_stat)
+
+# %%
+if params.get("in_notebook", False):
+    sns.set_theme(style="whitegrid")
+    # Create the line plot
+    plt.figure(figsize=(10, 8))
+    sns.lineplot(x='elapsedTimes', y='numberOfRows', data=df_stat)
+
+    # Set the labels
+    plt.title('Elapsed Times Line Plot')
+    plt.xlabel('Elapsed Time (s)')
+    plt.ylabel('Number of Rows')
+
+    # Show the plot
+    plt.show()
+
+# %% [markdown]
+# ## Performance Analysis
 
 
