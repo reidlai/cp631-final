@@ -269,6 +269,7 @@ def emarsi(symbols, start_date, end_date, rank, size, params):
 # ## Main Program
 
 # %%
+
 print(f"Rank: {rank}, Size: {size}")
 local_symbols = np.array([])
 symbol_trunks = np.array([])
@@ -304,40 +305,44 @@ for index, row in df.iterrows():
     remainder = len(symbols) % size
     if remainder != 0 and rank < remainder:
         symbols_per_process += 1
+        
+    # In case of processes spawned is more than number of symbols, we need to adjust symbols_per_process
+    if symbols_per_process == 0:
+        symbols_per_process = 1
 
     # Scatter symbols to all processes and each process should receive length of symbols / size blocks
-    symbol_trunks = [symbols[i:i + symbols_per_process] for i in range(0, len(symbols), symbols_per_process)]                             
+    symbol_trunks = [symbols[i:i + symbols_per_process] for i in range(0, len(symbols), symbols_per_process)]  
     local_symbols = comm.scatter(symbol_trunks, root=0)
     
-    remote_results = emarsi(local_symbols, start_date, end_date, rank, size, params) 
-    print(f"Rank: {rank}, remote_results: {remote_results}")   
-    
-    results = comm.gather(remote_results, root=0)
-    
-    if rank == 0:
-        print (f"Rank: {rank}, results: {results}")
-    
-        results = pd.concat(results)
-    
-        # if not params.get("cuda_installed", False):
-        #     results = macd(results)
-        # else:
-        #     results = macd_gpu(results)
+    if rank < len(symbols):    
+        remote_results = emarsi(local_symbols, start_date, end_date, rank, size, params) 
+        print(f"Rank: {rank}, remote_results: {remote_results}")   
+        
+        results = comm.gather(remote_results, root=0)
+        
+        if rank == 0:
+            print (f"Rank: {rank}, results: {results}")
+        
+            results = pd.concat(results)
+        
+            # if not params.get("cuda_installed", False):
+            #     results = macd(results)
+            # else:
+            #     results = macd_gpu(results)
 
-        parallel_fetching_stock_end_time = MPI.Wtime()
+            parallel_fetching_stock_end_time = MPI.Wtime()
+            
+            numberOfStocks = row["numberOfStocks"].astype(int)
+            numberOfDays = row["numberOfDays"].astype(int)
         
-        numberOfStocks = row["numberOfStocks"].astype(int)
-        numberOfDays = row["numberOfDays"].astype(int)
-    
-        if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
-            os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
-        
-        results.to_csv(f"outputs/results-{size}-{numberOfStocks}-{numberOfDays}.csv", index=False)
+            if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
+                os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
+            
+            results.to_csv(f"outputs/results-{size}-{numberOfStocks}-{numberOfDays}.csv", index=False)
 
 if rank == 0:
     df.loc[index, "numberOfProcesses"] = size
     df.loc[index, "elapsedTimes"] = parallel_fetching_stock_end_time - parallel_fetching_stock_start_time
-
 
     filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-{size}.csv"
     if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
