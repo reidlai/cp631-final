@@ -321,9 +321,11 @@ for index, row in df.iterrows():
     
     if rank < len(symbols):    
         remote_results = emarsi(local_symbols, start_date, end_date, rank, size, params) 
-        print(f"Rank: {rank}, remote_results: {remote_results}")   
-        
-        results = comm.gather(remote_results, root=0)
+    else:
+        remote_results = pd.DataFrame()
+    
+    print(f"Rank: {rank}, remote_results: {remote_results}")   
+    results = comm.gather(remote_results, root=0)
         
     parallel_end_time = MPI.Wtime()
     
