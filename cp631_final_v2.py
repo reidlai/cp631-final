@@ -495,6 +495,8 @@ for index, row in df.iterrows():
     
     remote_results = emarsi(local_symbols, start_date, end_date, rank, size, params)    
     results = comm.gather(remote_results, root=0)
+    print(f"Rank: {rank}, results: {results}")
+    
     results = pd.concat(results)
     
     if rank == 0:
