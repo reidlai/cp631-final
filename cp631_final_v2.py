@@ -322,7 +322,7 @@ for index, row in df.iterrows():
         
     local_symbols = comm.scatter(symbol_trunks, root=0)
     
-    if len(local_symbols) > 0::    
+    if len(local_symbols) > 0:
         remote_results = emarsi(local_symbols, start_date, end_date, rank, size, params) 
     else:
         remote_results = pd.DataFrame()
