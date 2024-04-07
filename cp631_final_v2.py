@@ -285,15 +285,13 @@ df["numberOfRows"] = df["numberOfStocks"] * df["numberOfDays"]
 print(f"MainBody: Rank: {rank}, Size: {size}")
 
 for index, row in df.iterrows():
-    if rank == 0:
-        print(f"Processing {row['numberOfStocks']} stocks for {row['numberOfDays']} days")
+    print(f"Processing {row['numberOfStocks']} stocks for {row['numberOfDays']} days")
 
-        previous_day = datetime.now() - timedelta(days=1)
-        end_date = previous_day.strftime('%Y-%m-%dT%H:%M:%S')
-        first_day = previous_day - timedelta(days=int(row["numberOfDays"]))
-        start_date = first_day.strftime('%Y-%m-%dT%H:%M:%S')
-
-        data_dir = './data'
+    previous_day = datetime.now() - timedelta(days=1)
+    end_date = previous_day.strftime('%Y-%m-%dT%H:%M:%S')
+    first_day = previous_day - timedelta(days=int(row["numberOfDays"]))
+    start_date = first_day.strftime('%Y-%m-%dT%H:%M:%S')
+    data_dir = './data'
     
     parallel_start_time = MPI.Wtime()
     
