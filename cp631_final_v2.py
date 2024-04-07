@@ -437,6 +437,9 @@ if rank == 0:
 # ## Data Visualization
 
 # %%
+import pandas as pd
+import os
+
 os.environ["PROJECT_ROOT"] = "./"
 filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-1.csv"
 
@@ -475,7 +478,7 @@ if os.path.exists(filename):
 else:
     df_stat_32 = None
     
-df_stat = pd.concat([df_stat_1, df_stat_2, df_stat_4, df_stat_4, df_stat_16, df_stat_32,])
+df_stat = pd.concat([df_stat_1, df_stat_2, df_stat_4, df_stat_8, df_stat_16, df_stat_32,])
 df_stat.reset_index(drop=True, inplace=True)
 
 # %%
@@ -490,11 +493,6 @@ def is_notebook():
             return False  # Other type (?)
     except NameError:
         return False      # Probably standard Python interpreter
-
-if is_notebook():
-    print("This is running in a Jupyter notebook")
-else:
-    print("This is not running in a Jupyter notebook")
     
 if is_notebook():
     display(df_stat)
