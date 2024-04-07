@@ -316,6 +316,9 @@ for index, row in df.iterrows():
 
         # Scatter symbols to all processes and each process should receive length of symbols / size blocks
         symbol_trunks = [symbols[i:i + symbols_per_process] for i in range(0, len(symbols), symbols_per_process)]  
+        if len(symbol_trunks) < size:
+            for i in range(len(symbol_trunks), size):
+                symbol_trunks.append([])
         
     local_symbols = comm.scatter(symbol_trunks, root=0)
     
