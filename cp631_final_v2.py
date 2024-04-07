@@ -285,33 +285,38 @@ df["numberOfRows"] = df["numberOfStocks"] * df["numberOfDays"]
 print(f"MainBody: Rank: {rank}, Size: {size}")
 
 for index, row in df.iterrows():
-    print(f"Processing {row['numberOfStocks']} stocks for {row['numberOfDays']} days")
+    if rank == 0:
+        print(f"Processing {row['numberOfStocks']} stocks for {row['numberOfDays']} days")
 
-    previous_day = datetime.now() - timedelta(days=1)
-    end_date = previous_day.strftime('%Y-%m-%dT%H:%M:%S')
-    first_day = previous_day - timedelta(days=int(row["numberOfDays"]))
-    start_date = first_day.strftime('%Y-%m-%dT%H:%M:%S')
+        previous_day = datetime.now() - timedelta(days=1)
+        end_date = previous_day.strftime('%Y-%m-%dT%H:%M:%S')
+        first_day = previous_day - timedelta(days=int(row["numberOfDays"]))
+        start_date = first_day.strftime('%Y-%m-%dT%H:%M:%S')
 
-    data_dir = './data'
+        data_dir = './data'
     
-    parallel_fetching_stock_start_time = MPI.Wtime()
+    parallel_start_time = MPI.Wtime()
+    
+    symbol_trunk = []
+    local_symbols = []
     
     # Scatter symbols to all processes
-
-    symbols = read_symbols_from_csvfile(os.environ["PROJECT_ROOT"] + "s-and-p-500-constituents/sandp500-20240310.csv")
-    symbols = symbols[:row["numberOfStocks"].astype(int)]
+    if rank == 0:
+        symbols = read_symbols_from_csvfile(os.environ["PROJECT_ROOT"] + "s-and-p-500-constituents/sandp500-20240310.csv")
+        symbols = symbols[:row["numberOfStocks"].astype(int)]
     
-    symbols_per_process = len(symbols) // size
-    remainder = len(symbols) % size
-    if remainder != 0 and rank < remainder:
-        symbols_per_process += 1
+        symbols_per_process = len(symbols) // size
+        remainder = len(symbols) % size
+        if remainder != 0 and rank < remainder:
+            symbols_per_process += 1
         
-    # In case of processes spawned is more than number of symbols, we need to adjust symbols_per_process
-    if symbols_per_process == 0:
-        symbols_per_process = 1
+        # In case of processes spawned is more than number of symbols, we need to adjust symbols_per_process
+        if symbols_per_process == 0:
+            symbols_per_process = 1
 
-    # Scatter symbols to all processes and each process should receive length of symbols / size blocks
-    symbol_trunks = [symbols[i:i + symbols_per_process] for i in range(0, len(symbols), symbols_per_process)]  
+        # Scatter symbols to all processes and each process should receive length of symbols / size blocks
+        symbol_trunks = [symbols[i:i + symbols_per_process] for i in range(0, len(symbols), symbols_per_process)]  
+        
     local_symbols = comm.scatter(symbol_trunks, root=0)
     
     if rank < len(symbols):    
@@ -320,29 +325,31 @@ for index, row in df.iterrows():
         
         results = comm.gather(remote_results, root=0)
         
-        if rank == 0:
-            print (f"Rank: {rank}, results: {results}")
+    parallel_end_time = MPI.Wtime()
+    
+    if rank == 0:
+        print (f"Rank: {rank}, results: {results}")
+    
+        results = pd.concat(results)
+    
+        # if not params.get("cuda_installed", False):
+        #     results = macd(results)
+        # else:
+        #     results = macd_gpu(results)
         
-            results = pd.concat(results)
+        parallel_end_time = MPI.Wtime()
         
-            # if not params.get("cuda_installed", False):
-            #     results = macd(results)
-            # else:
-            #     results = macd_gpu(results)
-
-            parallel_fetching_stock_end_time = MPI.Wtime()
-            
-            numberOfStocks = row["numberOfStocks"].astype(int)
-            numberOfDays = row["numberOfDays"].astype(int)
+        numberOfStocks = row["numberOfStocks"].astype(int)
+        numberOfDays = row["numberOfDays"].astype(int)
+    
+        if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
+            os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
         
-            if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
-                os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
-            
-            results.to_csv(f"outputs/results-{size}-{numberOfStocks}-{numberOfDays}.csv", index=False)
+        results.to_csv(f"outputs/results-{size}-{numberOfStocks}-{numberOfDays}.csv", index=False)
 
 if rank == 0:
     df.loc[index, "numberOfProcesses"] = size
-    df.loc[index, "elapsedTimes"] = parallel_fetching_stock_end_time - parallel_fetching_stock_start_time
+    df.loc[index, "elapsedTimes"] = parallel_end_time - parallel_start_time
 
     filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-{size}.csv"
     if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
