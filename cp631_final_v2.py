@@ -281,11 +281,6 @@ df["numberOfDays"] = [30, 90, 180, 365, 730]
 
 df["numberOfRows"] = df["numberOfStocks"] * df["numberOfDays"]
 
-# Fill zeros
-# df["serialElapsedTimes"] = [0.0] * len(df)
-# df["parallelElapsedTimes"] = [0.0] * len(df)
-df["numberOfProcesses"] = [0] * len(df)
-
 print(f"MainBody: Rank: {rank}, Size: {size}")
 
 for index, row in df.iterrows():
