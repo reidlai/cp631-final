@@ -339,15 +339,16 @@ for index, row in df.iterrows():
         
         results.to_csv(f"outputs/results-{size}-{numberOfStocks}-{numberOfDays}.csv", index=False)
 
-        df.loc[index, "numberOfProcesses"] = size
-        df.loc[index, "elapsedTimes"] = parallel_fetching_stock_end_time - parallel_fetching_stock_start_time
+if rank == 0:
+    df.loc[index, "numberOfProcesses"] = size
+    df.loc[index, "elapsedTimes"] = parallel_fetching_stock_end_time - parallel_fetching_stock_start_time
 
-    
-        filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-{size}.csv"
-        if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
-            os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
-        df.to_csv(filename, index=False)
-        print(f"Saved stats to {filename}")
+
+    filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-{size}.csv"
+    if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
+        os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
+    df.to_csv(filename, index=False)
+    print(f"Saved stats to {filename}")
         
 
 
