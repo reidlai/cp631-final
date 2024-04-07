@@ -322,33 +322,32 @@ for index, row in df.iterrows():
     if rank == 0:
         print (f"Rank: {rank}, results: {results}")
     
-    # print(f"Rank: {rank}, results: {results}")
-    # results = pd.concat(results)
+        results = pd.concat(results)
     
-    # if rank == 0:
-    #     if not params.get("cuda_installed", False):
-    #         results = macd(results)
-    #     else:
-    #         results = macd_gpu(results)
+        # if not params.get("cuda_installed", False):
+        #     results = macd(results)
+        # else:
+        #     results = macd_gpu(results)
 
-    # parallel_fetching_stock_end_time = MPI.Wtime()
-    # numberOfStocks = row["numberOfStocks"].astype(int)
-    # numberOfDays = row["numberOfDays"].astype(int)
-    
-    # if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
-    #     os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
+        parallel_fetching_stock_end_time = MPI.Wtime()
         
-    # results.to_csv(f"outputs/results-{size}-{numberOfStocks}-{numberOfDays}.csv", index=False)
+        numberOfStocks = row["numberOfStocks"].astype(int)
+        numberOfDays = row["numberOfDays"].astype(int)
+    
+        if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
+            os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
+        
+        results.to_csv(f"outputs/results-{size}-{numberOfStocks}-{numberOfDays}.csv", index=False)
 
-    # df.loc[index, "numberOfProcesses"] = size
-    # df.loc[index, "elapsedTimes"] = parallel_fetching_stock_end_time - parallel_fetching_stock_start_time
+        df.loc[index, "numberOfProcesses"] = size
+        df.loc[index, "elapsedTimes"] = parallel_fetching_stock_end_time - parallel_fetching_stock_start_time
 
     
-# filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-{size}.csv"
-# if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
-#     os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
-# df.to_csv(filename, index=False)
-# print(f"Saved stats to {filename}")
+        filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-{size}.csv"
+        if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
+            os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
+        df.to_csv(filename, index=False)
+        print(f"Saved stats to {filename}")
         
 
 
