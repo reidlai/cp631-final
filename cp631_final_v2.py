@@ -115,8 +115,9 @@ if params.get('cuda_installed', False):
 # I will first need to download S&P 500 constituents from my Kaggle repository
 
 # %%
-kaggle.api.authenticate()
-kaggle.api.dataset_download_files('reidlai/s-and-p-500-constituents', path="s-and-p-500-constituents", unzip=True)
+if rank == 0:
+    kaggle.api.authenticate()
+    kaggle.api.dataset_download_files('reidlai/s-and-p-500-constituents', path="s-and-p-500-constituents", unzip=True)
 
 # %% [markdown]
 # ## Stock Price History Download
