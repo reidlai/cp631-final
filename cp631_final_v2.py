@@ -98,12 +98,15 @@ comm = MPI.COMM_WORLD
 size = comm.Get_size()
 rank = comm.Get_rank()
 
+cuda_installed = False
+
 try:
   from numba import cuda
-  cuda_installed = True
-except:
+  device = cuda.get_current_device()
+  if device is not None:
+    cuda_installed = True
+except Exception as e:
   cuda_installed = False
-
 
 os.environ["PROJECT_ROOT"] = "./"
 # params = {}
@@ -252,7 +255,7 @@ def read_symbols_from_csvfile(csvfile_path):
 # ### Calculating EMA12, EMA26 and RSI for Serial and Parallel programming pattern
 
 # %%
-def emarsi(symbols, start_date, end_date, rank, size, params):
+def emarsi(symbols, start_date, end_date, rank, size):
 
     results = pd.DataFrame()
     # Fetch stock price history quotes using the local symbols
@@ -282,8 +285,6 @@ df["numberOfStocks"] = [10, 50, 100, 200, 400]
 df["numberOfDays"] = [30, 90, 180, 365, 730]
 
 df["numberOfRows"] = df["numberOfStocks"] * df["numberOfDays"]
-
-print(f"MainBody: Rank: {rank}, Size: {size}")
 
 for index, row in df.iterrows():
     print(f"Processing {row['numberOfStocks']} stocks for {row['numberOfDays']} days")
@@ -322,7 +323,7 @@ for index, row in df.iterrows():
     local_symbols = comm.scatter(symbol_trunks, root=0)
     
     if len(local_symbols) > 0:
-        remote_results = emarsi(local_symbols, start_date, end_date, rank, size, params) 
+        remote_results = emarsi(local_symbols, start_date, end_date, rank, size) 
     else:
         remote_results = pd.DataFrame()
     
@@ -334,7 +335,7 @@ for index, row in df.iterrows():
     
         results = pd.concat(results)
         
-        if cuda_installed:
+        if cuda_installed == True:
             results = macd_gpu(results)
         else:
             results = macd(results)
