@@ -93,6 +93,9 @@ from mpi4py import MPI
 # %% [markdown]
 # ## Initialize environment and variables
 
+# %% [markdown]
+# 
+
 # %%
 comm = MPI.COMM_WORLD
 size = comm.Get_size()
@@ -502,8 +505,6 @@ else:
     print(df_stat)
 
 # %%
-# import matplotlib.pyplot as plt
-# import seaborn as sns
 
 import plotly
 import plotly.express as px
@@ -521,22 +522,28 @@ if is_notebook():
 
 # %%
 df_serial = df_stat.loc[df_stat["numberOfProcesses"] == 1, ["numberOfRows","elapsedTimes"]]
-display(df_serial)
+if is_notebook():
+    display(df_serial)
+else:
+    print(f"df_serial: {df_serial}")
 
 
 # %%
 df_perf = pd.concat([
-  df_stat.loc[df_stat["numberOfProcesses"] == 2, ["numberOfProcesses", "numberOfRows","elapsedTimes"]],
-  df_stat.loc[df_stat["numberOfProcesses"] == 4, ["numberOfProcesses", "numberOfRows","elapsedTimes"]],
-  df_stat.loc[df_stat["numberOfProcesses"] == 8, ["numberOfProcesses", "numberOfRows","elapsedTimes"]],
-  df_stat.loc[df_stat["numberOfProcesses"] == 16, ["numberOfProcesses", "numberOfRows","elapsedTimes"]],
-  df_stat.loc[df_stat["numberOfProcesses"] == 32, ["numberOfProcesses", "numberOfRows","elapsedTimes"]],
+    df_stat.loc[df_stat["numberOfProcesses"] == 2, ["numberOfProcesses", "numberOfRows","elapsedTimes"]],
+    df_stat.loc[df_stat["numberOfProcesses"] == 4, ["numberOfProcesses", "numberOfRows","elapsedTimes"]],
+    df_stat.loc[df_stat["numberOfProcesses"] == 8, ["numberOfProcesses", "numberOfRows","elapsedTimes"]],
+    df_stat.loc[df_stat["numberOfProcesses"] == 16, ["numberOfProcesses", "numberOfRows","elapsedTimes"]],
+    df_stat.loc[df_stat["numberOfProcesses"] == 32, ["numberOfProcesses", "numberOfRows","elapsedTimes"]],
 ])
 df_perf = df_perf.merge(df_serial, on="numberOfRows", suffixes=('_parallel', '_serial'))
 df_perf["speedup"] = df_perf["elapsedTimes_serial"] / df_perf["elapsedTimes_parallel"]
 df_perf["efficiency"] = df_perf["speedup"] / df_perf["numberOfProcesses"]
 df_perf["overhead"] = (1 / df_perf["efficiency"] - 1) * 100
-display(df_perf.sort_values(by=["numberOfRows", "numberOfProcesses" ])[["numberOfRows", "numberOfProcesses", "elapsedTimes_serial", "elapsedTimes_parallel", "speedup", "efficiency", "overhead"]])  
+if is_notebook():
+    display(df_perf.sort_values(by=["numberOfRows", "numberOfProcesses" ])[["numberOfRows", "numberOfProcesses", "elapsedTimes_serial", "elapsedTimes_parallel", "speedup", "efficiency", "overhead"]]) 
+else:
+    print(df_perf.sort_values(by=["numberOfRows", "numberOfProcesses" ])[["numberOfRows", "numberOfProcesses", "elapsedTimes_serial", "elapsedTimes_parallel", "speedup", "efficiency", "overhead"]]) 
 
 # %%
 if is_notebook():
