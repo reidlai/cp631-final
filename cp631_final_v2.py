@@ -1,5 +1,5 @@
 # %% [markdown]
-# ## Prerequisites
+# # Part 1 - Prerequisites and Environment Setup
 
 # %% [markdown]
 # ### Course Server Setup
@@ -67,9 +67,6 @@
 # All traffice at port 8888 will forward to localhost port
 
 # %% [markdown]
-# ## Environment Setup
-
-# %% [markdown]
 # ### Kaggle Authenticiation
 # 
 # In this notebook, we will download a dataset from Kaggle. Before beginning the download process, it is necessary to ensure an account on Kaggle available. If you do not wish to sign in and would rather bypass the login prompt by uploading your kaggle.json file directly instead, then obtain it from your account settings page and save it either in the project root directory or content directory of Google Colab before starting this notebook. This way, you can quickly access any datasets without needing to log into Kaggle every time!
@@ -87,26 +84,30 @@ import random
 import time
 import yfinance as yf
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-
 from datetime import datetime, timedelta
 from mpi4py import MPI
 
 # %% [markdown]
-# ### Initialize environment and variables
+# # Part 2 - Core Program
+
+# %% [markdown]
+# ## Initialize environment and variables
 
 # %%
 comm = MPI.COMM_WORLD
 size = comm.Get_size()
 rank = comm.Get_rank()
 
-os.environ["PROJECT_ROOT"] = "./"
-params = {}
+try:
+  from numba import cuda
+  cuda_installed = True
+except:
+  cuda_installed = False
 
-# %%
-if params.get('cuda_installed', False): 
-  from numba import cuda, float32
+
+os.environ["PROJECT_ROOT"] = "./"
+# params = {}
+
 
 # %% [markdown]
 # ## S&P 500 Constituents Dataset Download
@@ -209,7 +210,7 @@ def macd(df, short_period=12, long_period=26, signal_period=9) -> pd.DataFrame:
     df["MACD"] = df["EMA12"] - df["EMA26"]
     return df
 
-if params.get("cuda_installed", False):
+if cuda_installed:
     @cuda.jit
     def macd_cuda(ema12, ema26, macd):
         i = cuda.grid(1)
@@ -325,20 +326,18 @@ for index, row in df.iterrows():
     else:
         remote_results = pd.DataFrame()
     
-    print(f"Rank: {rank}, remote_results: {remote_results}")   
     results = comm.gather(remote_results, root=0)
         
     parallel_end_time = MPI.Wtime()
     
     if rank == 0:
-        print (f"Rank: {rank}, results: {results}")
     
         results = pd.concat(results)
-    
-        # if not params.get("cuda_installed", False):
-        #     results = macd(results)
-        # else:
-        #     results = macd_gpu(results)
+        
+        if cuda_installed:
+            results = macd_gpu(results)
+        else:
+            results = macd(results)
         
         parallel_end_time = MPI.Wtime()
         
@@ -349,7 +348,6 @@ for index, row in df.iterrows():
             os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
         
         results.to_csv(f"outputs/results-{size}-{numberOfStocks}-{numberOfDays}.csv", index=False)
-
 
         df.loc[index, "numberOfProcesses"] = size
         df.loc[index, "elapsedTimes"] = parallel_end_time - parallel_start_time
@@ -434,6 +432,9 @@ if rank == 0:
 # ```
 
 # %% [markdown]
+# # Part 3 - Data Visualization and Performance Analysis
+
+# %% [markdown]
 # ## Data Visualization
 
 # %%
@@ -500,21 +501,55 @@ else:
     print(df_stat)
 
 # %%
-if params.get("in_notebook", False):
-    sns.set_theme(style="whitegrid")
-    # Create the line plot
-    plt.figure(figsize=(10, 8))
-    sns.lineplot(x='elapsedTimes', y='numberOfRows', data=df_stat)
+# import matplotlib.pyplot as plt
+# import seaborn as sns
 
-    # Set the labels
-    plt.title('Elapsed Times Line Plot')
-    plt.xlabel('Elapsed Time (s)')
-    plt.ylabel('Number of Rows')
+import plotly
+import plotly.express as px
+import plotly.figure_factory as ff
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
-    # Show the plot
-    plt.show()
+if is_notebook():
+    fig = px.line(df_stat, x="numberOfRows", y="elapsedTimes", color="numberOfProcesses", markers=True, title="Elapsed Times vs Number of Rows")
+    fig.show()
+    
 
 # %% [markdown]
 # ## Performance Analysis
+
+# %%
+df_serial = df_stat.loc[df_stat["numberOfProcesses"] == 1, ["numberOfRows","elapsedTimes"]]
+display(df_serial)
+
+
+# %%
+df_perf = pd.concat([
+  df_stat.loc[df_stat["numberOfProcesses"] == 2, ["numberOfProcesses", "numberOfRows","elapsedTimes"]],
+  df_stat.loc[df_stat["numberOfProcesses"] == 4, ["numberOfProcesses", "numberOfRows","elapsedTimes"]],
+  df_stat.loc[df_stat["numberOfProcesses"] == 8, ["numberOfProcesses", "numberOfRows","elapsedTimes"]],
+  df_stat.loc[df_stat["numberOfProcesses"] == 16, ["numberOfProcesses", "numberOfRows","elapsedTimes"]],
+  df_stat.loc[df_stat["numberOfProcesses"] == 32, ["numberOfProcesses", "numberOfRows","elapsedTimes"]],
+])
+df_perf = df_perf.merge(df_serial, on="numberOfRows", suffixes=('_parallel', '_serial'))
+df_perf["speedup"] = df_perf["elapsedTimes_serial"] / df_perf["elapsedTimes_parallel"]
+df_perf["efficiency"] = df_perf["speedup"] / df_perf["numberOfProcesses"]
+df_perf["overhead"] = (1 / df_perf["efficiency"] - 1) * 100
+display(df_perf.sort_values(by=["numberOfRows", "numberOfProcesses" ])[["numberOfRows", "numberOfProcesses", "elapsedTimes_serial", "elapsedTimes_parallel", "speedup", "efficiency", "overhead"]])  
+
+# %%
+if is_notebook():
+    fig = px.line(df_perf, x="numberOfRows", y="speedup", color="numberOfProcesses", markers=True, title="Speedup vs Number of Rows")
+    fig.show()
+
+# %%
+if is_notebook():
+    fig = px.line(df_perf, x='numberOfRows', y='efficiency', color='numberOfProcesses', markers=True, title='Efficiency vs Number of Rows')
+    fig.show()
+
+# %%
+if is_notebook():
+    fig = px.line(df_perf, x='numberOfRows', y='overhead', color='numberOfProcesses', markers=True, title='Overhead vs Number of Rows')
+    fig.show()
 
 
