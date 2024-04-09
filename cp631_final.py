@@ -59,7 +59,7 @@
 # 
 # ```bash
 # conda activate cp631-final
-# conda install -c conda-forge -y python=3.10 pip numba=0.55.0 numpy pandas matplotlib seaborn yfinance kaggle jupyter notebook
+# conda install -c conda-forge -y python=3.10 pip numba=0.55.0 numpy pandas plotly yfinance kaggle jupyter notebook
 # pip3 install install mpi4py
 # jupyter notebook --no-browser --port=8888
 # ```
@@ -93,16 +93,14 @@ from mpi4py import MPI
 # %% [markdown]
 # ## Initialize environment and variables
 
-# %% [markdown]
-# 
-
 # %%
+# Initialize MPI environment
 comm = MPI.COMM_WORLD
 size = comm.Get_size()
 rank = comm.Get_rank()
 
+# Check if GPU device is available through Numba CUDA interface
 cuda_installed = False
-
 try:
   from numba import cuda
   device = cuda.get_current_device()
@@ -111,16 +109,17 @@ try:
 except Exception as e:
   cuda_installed = False
 
+# Set project root directory
 os.environ["PROJECT_ROOT"] = "./"
-# params = {}
 
 
 # %% [markdown]
 # ## S&P 500 Constituents Dataset Download
 # 
-# I will first need to download S&P 500 constituents from my Kaggle repository
+# I will first need to download S&P 500 constituents from my Kaggle repository in root process.
 
 # %%
+# Download S&P 500 constituents from my Kaggle repository in root process
 if rank == 0:
     kaggle.api.authenticate()
     kaggle.api.dataset_download_files('reidlai/s-and-p-500-constituents', path="s-and-p-500-constituents", unzip=True)
@@ -131,6 +130,7 @@ if rank == 0:
 # get_stock_price_history_quotes function will download individual stock price history within range between start_date and end_date.
 
 # %%
+# get_stock_price_history_quotes function will download individual stock price history within range between start_date and end_date.
 def get_stock_price_history_quotes(stock_symbol, start_date, end_date) -> pd.DataFrame:
     start_date = datetime.strptime(start_date, "%Y-%m-%dT%H:%M:%S")
     end_date = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S")
@@ -281,7 +281,6 @@ print(f"Rank: {rank}, Size: {size}")
 local_symbols = np.array([])
 symbol_trunks = np.array([])
 
-
 df = pd.DataFrame()
 df["numberOfProcesses"] = [size] * 5
 df["numberOfStocks"] = [10, 50, 100, 200, 400]
@@ -289,6 +288,7 @@ df["numberOfDays"] = [30, 90, 180, 365, 730]
 
 df["numberOfRows"] = df["numberOfStocks"] * df["numberOfDays"]
 
+# Iterate over each sampling size
 for index, row in df.iterrows():
     print(f"Processing {row['numberOfStocks']} stocks for {row['numberOfDays']} days")
 
@@ -303,7 +303,7 @@ for index, row in df.iterrows():
     symbol_trunk = []
     local_symbols = []
     
-    # Scatter symbols to all processes
+    # Scatter symbols to all processes from root process
     if rank == 0:
         symbols = read_symbols_from_csvfile(os.environ["PROJECT_ROOT"] + "s-and-p-500-constituents/sandp500-20240310.csv")
         symbols = symbols[:row["numberOfStocks"].astype(int)]
@@ -322,22 +322,23 @@ for index, row in df.iterrows():
         if len(symbol_trunks) < size:
             for i in range(len(symbol_trunks), size):
                 symbol_trunks.append([])
-        
     local_symbols = comm.scatter(symbol_trunks, root=0)
     
+    # Calculate EMA 12, EMA 26, and RSI using MPI
     if len(local_symbols) > 0:
         remote_results = emarsi(local_symbols, start_date, end_date, rank, size) 
     else:
         remote_results = pd.DataFrame()
     
+    # Gather EMA 12, EMA26 and RSI results from all processes to root process
     results = comm.gather(remote_results, root=0)
-        
     parallel_end_time = MPI.Wtime()
     
+    # Concatenate all results from all processes and calculate MACD using CUDA
     if rank == 0:
-    
         results = pd.concat(results)
         
+        # Determine if we should use GPU or CPU for MACD calculation
         if cuda_installed == True:
             results = macd_gpu(results)
         else:
@@ -345,17 +346,18 @@ for index, row in df.iterrows():
         
         parallel_end_time = MPI.Wtime()
         
+        # Output results to CSV file
         numberOfStocks = row["numberOfStocks"].astype(int)
         numberOfDays = row["numberOfDays"].astype(int)
-    
         if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
             os.makedirs(os.environ["PROJECT_ROOT"] + "outputs")
-        
         results.to_csv(f"outputs/results-{size}-{numberOfStocks}-{numberOfDays}.csv", index=False)
+        print(f"Saved results to outputs/results-{size}-{numberOfStocks}-{numberOfDays}.csv")
 
-        df.loc[index, "numberOfProcesses"] = size
+        # Update the elapsed time in the statistics dataframe
         df.loc[index, "elapsedTimes"] = parallel_end_time - parallel_start_time
 
+# Save the statistics to a CSV file
 if rank == 0:
     filename = os.environ["PROJECT_ROOT"] + f"outputs/stats-{size}.csv"
     if not os.path.exists(os.environ["PROJECT_ROOT"] + "outputs"):
@@ -377,6 +379,9 @@ if rank == 0:
 # mpirun -np 16 -mca opal_cuda_support 1 ~/miniconda3/envs/cp631-final/bin/python ~/cp631-final/cp631_final.py
 # mpirun -np 32 -mca opal_cuda_support 1 ~/miniconda3/envs/cp631-final/bin/python ~/cp631-final/cp631_final.py
 # ```
+
+# %% [markdown]
+# While carrying out program execution, it became evident that the application failed to create threads when attempting to utilize sixty-four processes simultaneously. This issue might stem from constraints imposed by the course server settings aimed at apportioning system resources fairly amongst multiple users enrolled in the same course. Consequently, the scope of our sampling size will now be confined to a maximum of thirty-two processes.
 
 # %% [markdown]
 # ```bash
@@ -436,10 +441,59 @@ if rank == 0:
 # ```
 
 # %% [markdown]
+# While executing the program concurrently with both MPI and CUDA, an exception appeared, yet it did not affect the final outcome. Interestingly, when utilizing CUDA independently, there were no issues encountered. Following investigation within the open-source community, it is advised to update the CUDA toolkit version from 10.0 to 10.2. Nonetheless, it should be noted that such an upgrade could potentially influence various aspects of other project environments, thus I plan to address this matter during future maintenance procedures.
+# 
+# ```bash
+# df_serial:    numberOfRows  elapsedTimes
+# 0           300      0.947467
+# 1          4500      3.273152
+# 2         18000      6.807278
+# 3         73000     14.379980
+# 4        292000     33.064787
+#     numberOfRows  ...     overhead
+# 0            300  ...    65.171222
+# 1            300  ...   210.205771
+# 2            300  ...   353.955106
+# 3            300  ...   902.776276
+# 4            300  ...  1762.798583
+# 5           4500  ...    11.708379
+# 6           4500  ...    62.970777
+# 7           4500  ...    68.678253
+# 8           4500  ...   104.777233
+# 9           4500  ...   285.126068
+# 10         18000  ...    18.561165
+# 11         18000  ...    37.822484
+# 12         18000  ...    22.535292
+# 13         18000  ...    79.396803
+# 14         18000  ...   143.671642
+# 15         73000  ...    21.229651
+# 16         73000  ...    42.511562
+# 17         73000  ...    18.240306
+# 18         73000  ...    36.845391
+# 19         73000  ...   121.695044
+# 20        292000  ...    20.778152
+# 21        292000  ...    36.712170
+# 22        292000  ...    15.362431
+# 23        292000  ...    27.213532
+# 24        292000  ...    42.274391
+# 
+# [25 rows x 7 columns]
+# Exception ignored in: <function Pool.__del__ at 0x2b866dbd53f0>
+# Traceback (most recent call last):
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/pool.py", line 271, in __del__
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/queues.py", line 377, in put
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/connection.py", line 200, in send_bytes
+#   File "/home/wlai11/miniconda3/envs/cp631-final/lib/python3.10/multiprocessing/connection.py", line 400, in _send_bytes
+# TypeError: 'NoneType' object is not callable
+# ```
+
+# %% [markdown]
 # # Part 3 - Data Visualization and Performance Analysis
 
 # %% [markdown]
 # ## Data Visualization
+# 
+# In Part 2, statistics files stats-{size}.csv have been generated in outputs folde.  These files are now imported into data frame to allow plotly rendering graphics in later sections for further analysis.
 
 # %%
 import pandas as pd
@@ -486,6 +540,9 @@ else:
 df_stat = pd.concat([df_stat_1, df_stat_2, df_stat_4, df_stat_8, df_stat_16, df_stat_32,])
 df_stat.reset_index(drop=True, inplace=True)
 
+# %% [markdown]
+# If running in Jupyter notebook, you can use the following code to display the data frame.
+
 # %%
 def is_notebook():
     try:
@@ -504,6 +561,11 @@ if is_notebook():
 else:
     print(df_stat)
 
+# %% [markdown]
+# ### Elapsed Time vs Number of Rows
+# 
+# According to the line chart labeled "Elapsed Times versus Number of Rows," the program undergoes a remarkable boost in performance once eight processes are deployed, as demonstrated by the graph. Furthermore, the chart implies that while spawning 16 or 32 processes, there appears to be little discernible decline in processing time.
+
 # %%
 
 import plotly
@@ -514,6 +576,8 @@ from plotly.subplots import make_subplots
 
 if is_notebook():
     fig = px.line(df_stat, x="numberOfRows", y="elapsedTimes", color="numberOfProcesses", markers=True, title="Elapsed Times vs Number of Rows")
+    fig['layout']['xaxis'].update(title_text='Number of Rows')
+    fig['layout']['yaxis'].update(title_text='Elapsed Time (s)')
     fig.show()
     
 
@@ -545,19 +609,40 @@ if is_notebook():
 else:
     print(df_perf.sort_values(by=["numberOfRows", "numberOfProcesses" ])[["numberOfRows", "numberOfProcesses", "elapsedTimes_serial", "elapsedTimes_parallel", "speedup", "efficiency", "overhead"]]) 
 
+# %% [markdown]
+# ### Speedup
+# 
+# The graph displayed below exhibits an intriguing trend. With the exception of the instance involving 32 processes, the line representing speedup remains horizontally flat when dealing with 73,000 rows. This phenomenon occurs more promptly when the number of processes does not exceed 8. Upon analyzing the quantity of rows, it becomes apparent that 73,000 rows divided by 16 processes yields approximately 4,563 rows per process, whereas 292,000 rows split by 32 processes equates to roughly 9,125 rows per process. These figures indicate that beyond a certain threshold known as the parallel overhead breakpoint, which lies somewhere between 4,563 rows per process and 9,125 rows per process, reducing parallel overhead results in a considerable reduction in processing requirements. Essentially, if we possess sufficient rows per process, we can significantly lessen parallel overhead.
+
 # %%
 if is_notebook():
     fig = px.line(df_perf, x="numberOfRows", y="speedup", color="numberOfProcesses", markers=True, title="Speedup vs Number of Rows")
+    fig['layout']['xaxis'].update(title_text='Number of Rows')
+    fig['layout']['yaxis'].update(title_text='Speedup')
     fig.show()
+
+# %% [markdown]
+# ### Efficiency
+# 
+# This graph corroborates the assertion put forth in the graph "Elapsed Times vs Number of Rows". The analysis reveals that when the number of processes stands at eight, the program attains optimal efficiency compared to all other tests carried out. Moreover, the parallel efficiency demonstrates a significant improvement when handling more than 73,000 rows in circumstances where thirty-two processes are active.
 
 # %%
 if is_notebook():
     fig = px.line(df_perf, x='numberOfRows', y='efficiency', color='numberOfProcesses', markers=True, title='Efficiency vs Number of Rows')
+    fig['layout']['xaxis'].update(title_text='Number of Rows')
+    fig['layout']['yaxis'].update(title_text='Efficiency')
     fig.show()
+
+# %% [markdown]
+# ### Overhead
+# 
+# As illustrated in the overhead graph, the program has the ability to substantially diminish parallel overhead regardless of the testing environment whenever the number of rows surpasses 18,000.
 
 # %%
 if is_notebook():
     fig = px.line(df_perf, x='numberOfRows', y='overhead', color='numberOfProcesses', markers=True, title='Overhead vs Number of Rows')
+    fig['layout']['xaxis'].update(title_text='Number of Rows')
+    fig['layout']['yaxis'].update(title_text='Overhead')
     fig.show()
 
 
